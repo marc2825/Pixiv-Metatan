@@ -1,15 +1,18 @@
 # Public release checklist
 
-- [ ] The exact extension zip builds from a locked, reproducible toolchain.
-- [ ] `npm run typecheck`, `npm test`, `npm run build` all PASS.
-- [ ] Verified in Chrome/Edge and on real pixiv pages with owner-controlled artwork.
-- [ ] PNG tEXt/zTXt/iTXt, Stealth and optional JPEG/WebP handling behave as advertised.
-- [ ] No false 'verified NovelAI' statuses, even for spoofed signed_hash metadata.
-- [ ] Permissions and static code inspected for unnecessary access.
-- [ ] CSP, malformed XML/JSON, XSS metadata strings, decompression and image pixel limits reviewed.
-- [ ] Handles 403/429 and auth failures without header spoofing or proxy fallback.
-- [ ] No automated scraping, bulk collection, hidden external requests, telemetry or credential handling.
-- [ ] Pixiv policies and Chrome Web Store policies reviewed for the shipped UX.
-- [ ] Privacy policy, attribution, LICENSE, screenshots, versions and icon assets prepared.
-- [ ] Third-party sample images and explicit copyrighted/R18 fixture assets are not included.
-- [ ] Final release approved explicitly before pushing / publishing.
+2026-10-22: **NO-GO**. Gate 1 code is implemented; live acceptance remains open.
+
+- [x] Locked dependencies; Chrome and Edge MV3 builds.
+- [x] Typecheck, unit/integration tests and builds PASS (see TEST_STATUS).
+- [x] Synthetic Chrome UI tests; no real pixiv requests or installed extension profile.
+- [ ] Actual Chrome/Edge extension verification on owner-controlled artwork, including minimum supported browser version.
+- [x] PNG tEXt/zTXt/iTXt, malformed data, bounded inflate, CRC and signature-claim handling tests.
+- [ ] Gate 2 Stealth/character captions/JPEG/WebP/signatures, or an explicitly scoped public release that omits them.
+- [x] Source and generated manifests inspected: only pixiv/pximg hosts; no extra API permissions, telemetry or broad hosts.
+- [x] Synthetic access failures, streaming limits, malicious text, JSON bounds and cancellation tests.
+- [ ] Live pximg fetch/fallback status and undocumented pixiv API behavior recorded.
+- [x] README, SECURITY and local privacy statement match implementation; synthetic screenshot available.
+- [ ] Public reporting channel, privacy URL, third-party license/dependency vulnerability review and store icon/assets prepared.
+- [ ] Pixiv and Chrome Web Store policies reviewed for the shipped UX.
+- [x] No third-party artwork, R18 images, image uploads, scraping, credential handling or bypass mechanisms introduced.
+- [ ] Explicit approval for any future push / PR / publishing / installation outside this workspace.

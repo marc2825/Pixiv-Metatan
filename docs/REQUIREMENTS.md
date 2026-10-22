@@ -1,7 +1,7 @@
 # 要件定義書 — pixiv AI Metadata Inspector
 
 Version: 0.1.0 / 2026-10-22
-Status: **draft specification; prototype implementation is NOT complete**
+Status: **Gate 1 implementation and automated checks completed; live acceptance and Gate 2 are NOT complete** (see `TEST_STATUS.md`)
 
 ## 1. 背景・目的
 pixivの作品画像を閲覧しながら、可能な範囲で画像ファイル内部のAI生成メタデータを抽出・閲覧する。NovelAI、ComfyUI、AUTOMATIC1111/Forgeなどの主要形式を対象とする。既存の汎用拡張 AI Meta Viewer/Prompt Seek との差分は、pixivの原寸画像の選択・複数枚の対応・NovelAI固有のメタデータ/署名状態の明示・透明な失敗説明。

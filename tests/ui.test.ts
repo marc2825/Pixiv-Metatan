@@ -1,0 +1,112 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mountInspector, type AppDependencies } from '../src/ui/app';
+import { emptyResult } from '../src/metadata/types';
+import { renderResult, resultText } from '../src/ui/result';
+import { originalUrl } from './fixtures';
+
+let shadow: ShadowRoot;
+let destroy: () => void;
+const attach = Element.prototype.attachShadow;
+const pages = [{ page: 0, original: originalUrl() }, { page: 1, original: originalUrl('123', 1) }];
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
+function button(text: string) { const found = [...shadow.querySelectorAll('button')].find(b => b.textContent === text); if (!found) throw new Error(text); return found; }
+function mount(overrides: Partial<AppDependencies> = {}) {
+  const deps = { send: vi.fn().mockResolvedValue(emptyResult('no-metadata', [])), pages: vi.fn().mockResolvedValue(pages), ...overrides };
+  destroy = mountInspector(deps); return deps;
+}
+async function open() { button('AI Metadata').click(); await vi.waitFor(() => expect(button('元画像を検査').disabled).toBe(false)); }
+
+beforeEach(() => {
+  history.replaceState({}, '', '/artworks/123');
+  vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) { expect(init.mode).toBe('closed'); shadow = attach.call(this, init); return shadow; });
+});
+afterEach(() => { destroy?.(); vi.restoreAllMocks(); document.body.replaceChildren(); });
+
+describe('synthetic pixiv DOM integration', () => {
+  it('injects once and performs no fetch on mount; requires explicit Inspect', async () => {
+    const deps = mount(); mountInspector(deps);
+    expect(document.querySelectorAll('#pami-extension-root')).toHaveLength(1); expect(deps.pages).not.toHaveBeenCalled(); expect(deps.send).not.toHaveBeenCalled();
+    await open(); expect(deps.pages).toHaveBeenCalledOnce(); expect(deps.send).not.toHaveBeenCalled();
+    const select = shadow.querySelector('select')!; select.value = '1'; select.dispatchEvent(new Event('change'));
+    button('元画像を検査').click(); button('元画像を検査').click();
+    await vi.waitFor(() => expect(deps.send).toHaveBeenCalledOnce());
+    expect(deps.send).toHaveBeenCalledWith(expect.objectContaining({ artworkId: '123', page: 1, url: originalUrl('123', 1) }));
+  });
+  it('discards a stale listing after SPA navigation, without fetching another automatically', async () => {
+    const pending = deferred<typeof pages>(); const deps = mount({ pages: vi.fn().mockReturnValue(pending.promise) });
+    button('AI Metadata').click(); history.pushState({}, '', '/artworks/456');
+    pending.resolve(pages);
+    await vi.waitFor(() => expect(shadow.querySelector('select')!.options).toHaveLength(0));
+    expect(button('元画像を検査').disabled).toBe(true); expect(deps.pages).toHaveBeenCalledOnce();
+    button('画像一覧を取得').click(); expect(deps.pages).toHaveBeenLastCalledWith('456', expect.any(AbortSignal));
+  });
+  it('does not show stale results after navigation or allow the previous image to be scanned', async () => {
+    const pending = deferred<ReturnType<typeof emptyResult>>(); const deps = mount({ send: vi.fn().mockReturnValue(pending.promise) });
+    await open(); button('元画像を検査').click(); history.pushState({}, '', '/artworks/456');
+    pending.resolve({ ...emptyResult('found', ['OLD RESULT']), fields: { prompt: 'old prompt' } });
+    await vi.waitFor(() => expect(button('元画像を検査').disabled).toBe(true));
+    expect(shadow.textContent).not.toContain('OLD RESULT'); expect(shadow.textContent).not.toContain('old prompt');
+    expect(deps.send).toHaveBeenCalledWith(expect.objectContaining({ type: 'CANCEL_INSPECTION' }));
+  });
+  it('cancels on page selection and suppresses late results', async () => {
+    const pending = deferred<ReturnType<typeof emptyResult>>(); const deps = mount({ send: vi.fn().mockReturnValue(pending.promise) });
+    await open(); button('元画像を検査').click(); const select = shadow.querySelector('select')!; select.value = '1'; select.dispatchEvent(new Event('change'));
+    expect(deps.send).toHaveBeenCalledWith(expect.objectContaining({ type: 'CANCEL_INSPECTION' }));
+    pending.resolve(emptyResult('found', ['STALE'])); await vi.waitFor(() => expect(button('元画像を検査').disabled).toBe(false));
+    expect(shadow.textContent).not.toContain('STALE');
+  });
+  it('keeps the local fallback usable after denied artwork data', async () => {
+    mount({ pages: vi.fn().mockRejectedValue(new Error('403')) }); button('AI Metadata').click();
+    await vi.waitFor(() => expect(shadow.textContent).toContain('作品情報を取得できませんでした'));
+    expect(button('元画像を検査').disabled).toBe(true); expect(button('ローカルファイルを検査').disabled).toBe(false);
+  });
+  it('rejects an oversized local file before opening its byte stream', async () => {
+    const deps = mount(); await open(); button('ローカルファイルを検査').click();
+    const file = shadow.querySelector('input[type=file]')!, stream = vi.fn();
+    Object.defineProperty(file, 'files', { configurable: true, value: [{ name: 'large.png', size: 48 * 1024 * 1024 + 1, stream }] });
+    file.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(shadow.textContent).toContain('安全上限超過'));
+    expect(stream).not.toHaveBeenCalled(); expect(deps.send).not.toHaveBeenCalled();
+  });
+  it('supports Escape, focus return, reopening and off-artwork visibility', async () => {
+    const deps = mount(); await open(); shadow.querySelector('section')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+    expect(shadow.querySelector('section')!.hidden).toBe(true); expect(shadow.activeElement).toBe(button('AI Metadata'));
+    button('AI Metadata').click(); expect(button('AI Metadata').getAttribute('aria-expanded')).toBe('true'); expect(deps.pages).toHaveBeenCalledOnce();
+    history.pushState({}, '', '/users/123'); await vi.waitFor(() => expect(button('AI Metadata').hidden).toBe(true));
+    expect(shadow.querySelector('section')!.hidden).toBe(true);
+  });
+  it('removes UI and cancels outstanding work on teardown', async () => {
+    const pending = deferred<typeof pages>(); const deps = mount({ pages: vi.fn().mockReturnValue(pending.promise) });
+    button('AI Metadata').click(); destroy(); pending.resolve(pages);
+    expect(document.getElementById('pami-extension-root')).toBeNull(); expect(vi.mocked(deps.pages).mock.calls[0]?.[1]?.aborted).toBe(true);
+  });
+  it('retains the mount after BFCache but discards candidates and results', async () => {
+    const deps = mount(); await open();
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    expect(document.getElementById('pami-extension-root')).not.toBeNull();
+    expect(shadow.querySelector('select')!.options).toHaveLength(0);
+    expect(shadow.querySelector('section')!.hidden).toBe(true);
+    button('AI Metadata').click(); await vi.waitFor(() => expect(deps.pages).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('untrusted display and explicit clipboard access', () => {
+  it('renders executable-looking metadata only as text, including RAW and source names', async () => {
+    const container = document.createElement('div'); document.body.append(container);
+    const attack = '<img src=x onerror=alert(1)><script>alert(1)</script>';
+    const result = { ...emptyResult('found', [attack]), fields: { [attack]: attack }, textEntries: [{ keyword: 'prompt', value: attack, kind: 'tEXt' as const }], source: { kind: 'local' as const, name: attack } };
+    renderResult(container, result);
+    expect(container.querySelector('img,script')).toBeNull(); expect(container.textContent).toContain(attack);
+    const details = container.querySelector('details')!; details.open = true; details.dispatchEvent(new Event('toggle'));
+    expect(details.querySelector('pre')?.textContent).toContain(attack); expect(container.querySelector('img,script')).toBeNull();
+  });
+  it('copies preserved newlines and normalized JSON only on click, and reports denial', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const container = document.createElement('div'); const result = { ...emptyResult('found', []), fields: { prompt: 'line 1\nline 2' } };
+    renderResult(container, result); expect(writeText).not.toHaveBeenCalled();
+    const copies = container.querySelectorAll('button'); copies[0]!.click(); await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(resultText(result)));
+    copies[1]!.click(); expect(JSON.parse(writeText.mock.calls.at(-1)![0])).toEqual(result);
+    writeText.mockRejectedValue(new Error('denied')); copies[0]!.click(); await vi.waitFor(() => expect(container.textContent).toContain('コピーが許可されませんでした'));
+  });
+});

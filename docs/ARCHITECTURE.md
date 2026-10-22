@@ -1,72 +1,77 @@
 # 技術設計 / Architecture
 
-## A. 境界図
+更新: 2026-10-22。実装対象はGate 1。実pixivでのネットワーク成功は未検証。
 
-```
-pixiv artwork page
-  └─ isolated content script (WXT)
-       ├─ UI in closed Shadow DOM; explicit clicks only
-       ├─ current artwork ID + same-origin GET /ajax/illust/{id}/pages
-       ├─ validates each returned i.pximg.net/img-original URL
-       └─ runtime message {type:INSPECT_PIXIV_IMAGE, url}
-                  ↓
-        MV3 background service worker
-         ├─ validates sender pixiv artwork page URL
-         ├─ validates exact HTTPS image host + path
-         ├─ image fetch (permissions limited to pixiv/pximg)
-         ├─ timeout / byte / content-type / redirect guard
-         └─ parses metadata locally → normalized result
-                  ↓
-             content UI (safe textContent)
+## 信頼境界と通信
 
-fallback: user-chosen local PNG → parse locally in the content script
-```
-
-### Reality check / risks
-1. `/ajax/illust/{id}/pages` is an **undocumented pixiv endpoint**, not a stable API contract. Site may change or restrict it.
-2. `i.pximg.net` may reject extension-origin requests due to Referer/session access control. MV3 host permission ≠ guaranteed successful HTTP fetch. **No header spoofing / access-bypass**. User-supplied image file is the required fallback; test the fetch capability before investing in UI polish.
-3. MV3 content scripts obey same-origin restrictions. Cross-origin original image retrieval belongs in service worker, whose cross-origin access needs host permission. The service worker lacks DOM/canvas. For PNG alpha-steganography use an appropriate extension page/offscreen document if necessary; obtain only needed permissions.
-4. Distinguish tool (ComfyUI) and generator/engine (NovelAI model). They may coexist. Detection uses self-reported metadata unless verified signature.
-
-## B. Data model
-
-`InspectionResult`:
-```
-status: found | no-metadata | unsupported-format | access-denied | too-large | parse-error
-format: png | jpeg | webp | other
-generator: novelai | comfyui | a1111-forge | unknown
-confidence: metadata-indicates | weak | unknown
-novelaiSignature: not-checked | not-present | verified | invalid
-fields: Record<string,string>
-rawTextChunks: Record<string,string>
-notes: string[]
+```text
+pixiv top-level tab / isolated content script
+  └─ closed Shadow DOM (mountInspector)
+       ├─ パネルを開く / 一覧取得のクリック
+       │    └─ same-origin /ajax/illust/{id}/pages
+       │       → 1 MiB/15秒、JSONスキーマ、配列順序、作品ID/ページ別URL検証
+       ├─ Inspectのクリック → {type, requestId, artworkId, page, url}
+       │    └─ runtime message → MV3 service worker
+       │         ├─ 自拡張ID + pixiv origin + top frame + tab ID
+       │         ├─ tabs.getで現在の作品ID確認（SPAでsender.urlが古い場合に対応）
+       │         ├─ HTTPS i.pximg.net + img-original/img/.../{id}_p{page}.ext
+       │         ├─ 1つのグローバル実行枠（tabs.getより前に確保）
+       │         ├─ credentials: omit / redirect: error / no-referrer
+       │         ├─ 15秒 / 実受信48 MiB / MIMEとmagicの照合
+       │         └─ ローカル解析 → 現在のタブ再確認 → JSON互換の結果
+       ├─ 取り消し・SPA遷移・閉じる → abort + requestId付き取消要求
+       └─ 明示ファイル選択 → サイズ確認 → bounded stream → 同じ解析器
 ```
 
-P1 should add `engines: GeneratorKind[]` and `evidence[]` so mixed generator/tool data is not forced to one label.
+元URLは現在アクセスできる作品APIの応答からのみ採用し、構築しません。Workerでも作品・ページ・URLを照合します。APIから取得したという根拠はisolated content scriptの信頼境界に置きます。ウィンドウメッセージ、DOM属性、ページスクリプトから汎用fetchを呼ぶ橋は公開しません。Workerは別の作品や任意サイトのURLを取得しません。
 
-## C. PNG chunks
-- PNG signature, chunk length big endian, 4-char ASCII type, data, CRC32.
-- tEXt: keyword NUL Latin-1 string.
-- zTXt: keyword NUL compression method 0 + zlib-compressed string.
-- iTXt: keyword NUL compression flag + method + language NUL + translated keyword NUL + UTF-8 text (optionally compressed).
-- Validate chunk lengths and CRC, bounded inflate and total text budget, don't parse full pixel payload for text-only cases.
-- `Description`, `Software`, `Comment` indicate NovelAI in some versions. Do not assume values/key stability.
-- `prompt`, `workflow` are common ComfyUI JSON keys. ComfyUI prompt is *API graph*, not a single human-readable positive string; multiple CLIP encoders, custom nodes, links, and prompt schedules may be present.
-- `parameters` is common A1111/Forge text metadata.
-- NovelAI Stealth PNG uses LSB alpha data in `stealth_pnginfo`/`stealth_pngcomp` formats. Follow official implementation exactly; decompression after decoding must be bounded. NovelAI signature verification is a separate cryptographic operation.
-- WebP may carry EXIF and Stealth; JPEG may have EXIF/XMP with vendor data. Extra formats are P1.
+`sender.url`はSPAの前のURLを示す場合があるため、送信元のpixivオリジンと現在のタブの作品IDを分けて確認します。pixivのhost permissionは、このタブURL確認とサイト注入に利用します。`tabs` / `cookies` / `storage` / `webRequest` / `offscreen`等の追加権限はありません。Chromeのhost permissionではパス制限が効かないため、画像のパス制限を実装内で強制します。
 
-## D. Security handling
-- Source URL validation and sender validation **on the privileged worker**, not only on content page.
-- Use `fetch` without credentials for i.pximg.net. Never inspect cookies or use proxy services to bypass pixiv access control.
-- No arbitrary redirect following, no URL rewrite to bypass denial.
-- Buffering **entire image** is temporary prototype behavior; P0 release gate requires streaming byte cap (48MiB) even if Content-Length omitted. Limit decoded pixels for alpha analysis (e.g., <=40 million).
-- Metadata can include adversarial prompt text, HTML, giant JSON, broken UTF-8 or intentionally misleading `Software` values. Render via `textContent`, not `innerHTML`.
-- Strictly separate source evidence from display labels; raw `signed_hash` does not mean verified.
-- Browser cache naturally caches fetches, but the extension stores no user metadata in local storage.
+非同期メッセージ応答は`return true` + `sendResponse`。Promiseを返すlistenerの新しいChrome依存を避けます。Chrome/Edge 120以降を最低対象としますが、実機の最小バージョン検証は未実施です。
 
-## E. Browser test matrix
-- Chrome, Edge recent versions; pixiv single page/multi-page (1/10 pages), SPA navigation, signed in/out, adult-accessible work legitimately visible, original JPEG vs PNG.
-- Network: original 200, pixiv API denied, pximg 403, 429, 404, connection interruption, timeout; no retry beyond user clicks.
-- Data: NovelAI tEXt, stealth-only, compressed, V5 character captions, ComfyUI workflow-only, A1111 parameters, corrupt PNG, huge dimensions, fake signed_hash, mixed formats, no metadata.
-- Version pinning and exact reference fixture provenance (synthetic fixtures can be committed, third-party copyrighted content should not).
+## スケジューリング
+
+- 一覧はクリック時だけ。画像取得はInspectのクリック時だけ。SPA検出はURL確認のみ。
+- 複数タブを含めWorker全体で画像取得・読込・解析は1件。追加要求をキューに積まず`busy`を返します。
+- 取消は同じタブ・requestIdだけ。abortを要求しても、元処理のfinallyまで枠を解放しません。
+- タブ移動・ロード・終了もWorker側で取消。UI側は世代番号と現在の作品IDで古い一覧・結果を破棄。
+- BFCache入りでは候補・結果を破棄し、復帰後に再度クリックが必要。ホスト要素の除去・WXT無効化ではタイマーとlistenerを破棄。
+
+## データモデル
+
+`src/metadata/types.ts`が型の定義です。
+
+- `status`: found / no-metadata / unsupported-format / access-denied / too-large / parse-error / cancelled / busy
+- `format`: png / jpeg / webp / other
+- `generator`: 既存コード互換の代表値。UIは`detected[]`と`evidence[]`を使い、混在した自己申告を保持。
+- `confidence`: metadata-indicates / weak / unknown。現実装ではweakを生成しません。
+- `novelaiSignature`: not-checked / not-present / verified / invalid。現実装は最後の2つを生成しません。
+- `fields`: 表示用の文字列辞書。通常NovelAIの共通Prompt/Negative等とA1111設定を抽出。ComfyUIはグラフを保持し、唯一のPromptを推測しない。
+- `rawTextChunks`: 重複のない通常テキストキー。`textEntries`: 元のチャンク種別・キー・値を重複込みで保持。
+- `notes`: 失敗・不確実性・未対応の説明。`source`: pixiv作品/ページ/URL、または明示選択したファイル名。
+
+NovelAIの検出にはSoftwareの自己申告を使用し、汎用のsteps/samplerや署名文字列だけを根拠にしません。ComfyUIはAPIノードまたはworkflow.nodesのJSON構造を確認します。ComfyUIは生成エンジンではありません。独自ノードの中身やモデルの意味は解釈しません。
+
+## PNGとサイズ制限
+
+- ファイル48 MiB、寸法40百万画素、全チャンク4096、テキストチャンク128。
+- PNGシグネチャ、全チャンクの境界とCRC、IHDRの寸法/色形式、PLTE、IDAT連続性、IENDを確認。未知のcritical chunkは拒否。
+- PNG tEXtはISO-8859-1。ブラウザの`TextDecoder('latin1')`はWindows-1252なので使用しない。
+- zTXt / 圧縮iTXtはネイティブ`DecompressionStream('deflate')`で展開し、ストリームを2 MiBの共通予算で制限。圧縮状態のテキスト総量も2 MiB以下。
+- iTXtは厳格なUTF-8、圧縮フラグ/方式/ヘッダーを検証。不正ならparse-error。
+- 重複キーワードは判定から除外し、RAWに保持。署名の存在申告は重複時もnot-checked。
+- JSONは2 MiB、深さ64、最大50,000値。RAWは失わず、不正JSONを検出根拠に使わない。
+- 実受信バイトを数える可変長バッファを使用。細かいチャンクが多数届いてもチャンク配列の管理メモリが増え続けない。
+- IDAT画素は展開しないため、Stealth未検査。画像として完全にデコード可能かまでは保証しない。
+
+ローカルファイルは`.size`を読んでからstreamで読み込みます。フルサイズのarrayBufferを先に確保しません。ネットワーク応答はContent-Lengthに依存せず制限を強制し、超過・拒否時はbodyをcancelします。
+
+## UI・プライバシー
+
+全メタデータはtextContentで描画。JSONはデータとしてだけ扱い、HTML/Markdown/スクリプトを実行しません。RAWとComfyUIは展開時のみ描画。コピーはクリック時のみで、ブラウザが拒否した場合は手動コピーを案内します。永続保存・解析ログ・外部API・テレメトリーはありません。
+
+## 残る境界検証
+
+合成DOM/Playwrightは実際のpixivやMV3権限の代替証拠にはなりません。未文書化API、ログイン状態、原寸200/403、拡張の注入とメッセージ送受信はChrome/Edgeで[手動検証](MANUAL_TESTS.md)が必要です。[Gate 2調査](NOVELAI_RESEARCH.md)を参照。
+
+参照: [Chrome cross-origin requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)、[Chrome messaging](https://developer.chrome.com/docs/extensions/develop/concepts/messaging)、[W3C PNG 3](https://www.w3.org/TR/png-3/)。
