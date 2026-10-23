@@ -1,18 +1,22 @@
 # Gate 2: NovelAI公式実装の調査
 
-調査日: 2026-10-22。**移植・署名照合はNOT RUN**。Gate 1の実機受入がGOになるまで、Stealth/署名/キャラクター別解析の実装を保留しています。
+更新: 2026-10-23。**Gate 2機能の移植と正当な署名の照合はNOT RUN**。Gate 1の実サイト受入までStealth/署名/キャラクター別解析の実装を保留しています。通常PNG readerの実行と、明白な偽署名の拒否だけをローカルで照合しました。
 
 ## 参照を固定
 
 公式リポジトリ: [NovelAI/novelai-image-metadata](https://github.com/NovelAI/novelai-image-metadata)
 
-参照コミット: `3428907ac7183d7e36d7cc39e8f46f6f35ce99c1`（2026-08-20）。公開ソースの読取のみ。Pythonは実行せず、第三者画像も取得していません。
+参照コミット: `3428907ac7183d7e36d7cc39e8f46f6f35ce99c1`（2026-08-20）。通常PNGについて公式Python readerを人工1×1画像で実行しました。第三者画像や正当な署名付き画像は取得していません。
 
 - [nai_meta.py](https://github.com/NovelAI/novelai-image-metadata/blob/3428907ac7183d7e36d7cc39e8f46f6f35ce99c1/nai_meta.py)
 - [nai_sig.py](https://github.com/NovelAI/novelai-image-metadata/blob/3428907ac7183d7e36d7cc39e8f46f6f35ce99c1/nai_sig.py)
 - [MIT License](https://github.com/NovelAI/novelai-image-metadata/blob/3428907ac7183d7e36d7cc39e8f46f6f35ce99c1/LICENSE) (Copyright 2023 NovelAI)
 
-現コードにこれらの実装を移植していません。移植時にはMITライセンス全文と帰属を同梱し、参照コミットと変更点を記録してください。
+Stealth/暗号学的検証は製品に移植していません。通常テキストの1段のComment envelopeは公式readerの挙動に合わせて修正しました。将来コードを移植する場合はMITライセンス全文と帰属を同梱し、参照コミットと変更点を記録してください。
+
+## Gate 1品質改善のための実行結果
+
+`scripts/reference-fixtures.py`は参照ソースのSHA-256を検証し、公式の通常PNG readerとComfyUI SaveImageをローカルで使います。Comment envelopeを従来の正規化が読めないことを再現し、修正後にRAW・共通Prompt・Negative・Seed等の一致を確認しました。64-byteゼロ署名は公式verifierでfalseでしたが、本拡張にはverifierがないためnot-checkedのままです。正当な署名の正例は未確認であり、verifiedの根拠にはしません。[fixtureの出所](../tests/reference/README.md)。
 
 ## 確認した形式
 

@@ -1,6 +1,6 @@
 # 技術設計 / Architecture
 
-更新: 2026-10-22。実装対象はGate 1。実pixivでのネットワーク成功は未検証。
+更新: 2026-10-23。実装対象はGate 1。実MV3は合成応答で検証済み。実pixivはdocument HTTP 403で作品/API/原寸を未検証。
 
 ## 信頼境界と通信
 
@@ -50,7 +50,7 @@ pixiv top-level tab / isolated content script
 - `rawTextChunks`: 重複のない通常テキストキー。`textEntries`: 元のチャンク種別・キー・値を重複込みで保持。
 - `notes`: 失敗・不確実性・未対応の説明。`source`: pixiv作品/ページ/URL、または明示選択したファイル名。
 
-NovelAIの検出にはSoftwareの自己申告を使用し、汎用のsteps/samplerや署名文字列だけを根拠にしません。ComfyUIはAPIノードまたはworkflow.nodesのJSON構造を確認します。ComfyUIは生成エンジンではありません。独自ノードの中身やモデルの意味は解釈しません。
+NovelAIの検出にはSoftwareの自己申告を使用し、汎用のsteps/samplerや署名文字列だけを根拠にしません。公式reader互換でComment内のComment文字列を1段だけ読み、RAWは保持します。内側も同じJSON上限で検証し、不正なら値の抽出を止めます。ComfyUIはAPIノードまたはworkflow.nodesのJSON構造を確認します。ComfyUIは生成エンジンではありません。独自ノードの中身やモデルの意味は解釈しません。
 
 ## PNGとサイズ制限
 
@@ -72,6 +72,10 @@ NovelAIの検出にはSoftwareの自己申告を使用し、汎用のsteps/sampl
 
 ## 残る境界検証
 
-合成DOM/Playwrightは実際のpixivやMV3権限の代替証拠にはなりません。未文書化API、ログイン状態、原寸200/403、拡張の注入とメッセージ送受信はChrome/Edgeで[手動検証](MANUAL_TESTS.md)が必要です。[Gate 2調査](NOVELAI_RESEARCH.md)を参照。
+`test:browser`は従来のテスト用アダプタです。`test:extension`は生成済みの本番ビルドを一時Chromeプロファイルへ読み込み、closed Shadow DOMをDevToolsで操作します。ページ・API・原寸の応答は合成ですが、実際のcontent script隔離、runtime messaging、worker fetch、tabs.getと取消を通します。テスト用の権限やメッセージ橋を製品に加えません。
+
+`verify:live`は通常の実サイト接続用で、作品URLと0始まりのページを指定して原寸を1回だけ検査します。認証は移植せず、画像・Prompt・RAW・URLを証跡へ保存しません。document拒否時は停止し、エラーをPASSへ変換しません。ビルドSHA-256と状態だけ記録します。Nodeの開発用コマンドであり、拡張から外部処理を呼ぶ機能ではありません。
+
+実pixivはdocument 403のため作品を検査できていません。未文書化API、ログイン状態、原寸200/403、実EdgeとMV3の長時間寿命は[手動検証](MANUAL_TESTS.md)が必要です。[Gate 2調査](NOVELAI_RESEARCH.md)を参照。
 
 参照: [Chrome cross-origin requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)、[Chrome messaging](https://developer.chrome.com/docs/extensions/develop/concepts/messaging)、[W3C PNG 3](https://www.w3.org/TR/png-3/)。

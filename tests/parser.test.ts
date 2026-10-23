@@ -91,6 +91,21 @@ describe('PNG text reader with independent synthetic PNGs', () => {
 });
 
 describe('evidence and normalization', () => {
+  it('reads the official one-level Comment envelope and retains the original RAW', async () => {
+    const comment = JSON.stringify({ Comment: JSON.stringify({ prompt: 'wrapped prompt', uc: 'negative', seed: 123, signed_hash: 'fake' }) });
+    const result = await inspectImage(pngWithText({ Software: 'NovelAI', Comment: comment }));
+    expect(result.fields).toMatchObject({ prompt: 'wrapped prompt', negative: 'negative', seed: '123' });
+    expect(result.rawTextChunks.Comment).toBe(comment); expect(result.novelaiSignature).toBe('not-checked');
+  });
+  it.each(['not-json', 'null', '[]', 42])('rejects a malformed nested Comment safely: %j', inner => {
+    const result = classifyTextChunks({ Software: 'NovelAI', Description: 'outer description', Comment: JSON.stringify({ Comment: inner, seed: 999 }) });
+    expect(result.fields.prompt).toBe('outer description'); expect(result.fields.seed).toBeUndefined();
+    expect(result.notes.join(' ')).toContain('Comment.Comment'); expect(result.signature).not.toBe('verified');
+  });
+  it('does not recursively unwrap arbitrary Comment envelopes', () => {
+    const result = classifyTextChunks({ Software: 'NovelAI', Comment: JSON.stringify({ Comment: JSON.stringify({ Comment: '{"seed":123}' }) }) });
+    expect(result.fields.seed).toBeUndefined();
+  });
   it.each([undefined, 'fake-signature', '', null, { verified: true }])('never verifies claimed signatures: %j', signed_hash => {
     const details = signed_hash === undefined ? {} : { signed_hash };
     const result = classifyTextChunks({ Software: 'NovelAI', Description: 'prompt', Source: 'self-reported model', Comment: JSON.stringify(details) });

@@ -2,7 +2,7 @@
 
 pixivの作品ページで、ユーザーが選んだ1枚の原寸画像に含まれるAI生成メタデータを表示するChrome / Edge MV3拡張です。画像の見た目からAI生成を判定するものではありません。
 
-**状態: Gate 1の実装・自動テストは完了。実pixiv・実拡張としての動作は未確認で、公開可能とは判定していません。** Gate 0の実機検証、Gate 2のStealth・署名検証等が残っています。[検証記録](docs/TEST_STATUS.md)と[手動検証手順](docs/MANUAL_TESTS.md)を参照してください。
+**状態: Gate 1は実MV3拡張と合成応答で検証済み。実pixivはトップページHTTP 403で、作品・原寸の受入は未完了です。リリース判定はNO-GO。** Gate 2のStealth・署名検証等も残っています。[検証記録](docs/TEST_STATUS.md)と[実機確認手順](docs/MANUAL_TESTS.md)を参照してください。
 
 ## 開発・ビルド
 
@@ -18,13 +18,17 @@ npm run build:edge
 
 `npm ci` / `npm test`はWXTの型定義を準備します。依存関係は`package-lock.json`で固定しています。出力は`.output/chrome-mv3/`と`.output/edge-mv3/`です。
 
-ブラウザ結合テストは、実pixivへの通信をすべて合成応答に置き換えます。拡張をブラウザへインストールせず、UI・解析・取得処理をテスト用アダプタで接続します。
+`test:browser`はUI・解析・取得処理をテスト用アダプタで接続します。`test:extension`は本番ビルドを使い捨てプロファイルへ読み込み、本物のcontent script・runtime messaging・service workerを検査します。両者とも応答は合成です。`verify:live`は実サイト用で、画像やPromptを保存しません。
 
 ```bash
 npx playwright install chromium
 npm run test:browser
 # 既存のChrome for Testingを使う場合:
 PAMI_CHROME_PATH=/path/to/chrome npm run test:browser
+# 本番ビルドを一時プロファイルで読み込む実MV3試験（応答は合成）:
+PAMI_CHROME_PATH=/path/to/chrome npm run test:extension
+# 実pixivを選択ページ1枚で確認（通常接続、無再試行、証跡は状態のみ）:
+PAMI_CHROME_PATH=/path/to/chrome npm run verify:live -- --url https://www.pixiv.net/artworks/ARTWORK_ID --page 0
 ```
 
 ## 利用手順（実機確認待ち）
@@ -40,7 +44,7 @@ PAMI_CHROME_PATH=/path/to/chrome npm run test:browser
 ## 実装済み
 
 - PNG tEXt / zTXt / iTXt（非圧縮・圧縮）、CRC、チャンク境界・構造の確認。Latin-1とUTF-8を区別。
-- NovelAI通常メタデータ、ComfyUI APIグラフ・workflow、AUTOMATIC1111/Forge互換parametersの表示。混在時は複数の根拠を保持。
+- NovelAI通常メタデータ（公式reader互換の1段のComment envelopeを含む）、ComfyUI APIグラフ・workflow、AUTOMATIC1111/Forge互換parametersの表示。混在時は複数の根拠を保持。
 - 共通Prompt / Negative / Seed / Steps / Sampler / CFG / Model等、存在する値のみ正規化。ComfyUIから単一のプロンプトやモデルを推測しません。
 - 重複チャンクはRAWに全件保持し、曖昧なキーは判定から除外。署名の自己申告は常に未検証。
 - 48 MiBの受信・ローカルファイル上限、2 MiBの圧縮前および展開後テキスト予算、40百万画素の寸法上限、JSON深さ・ノード数制限。

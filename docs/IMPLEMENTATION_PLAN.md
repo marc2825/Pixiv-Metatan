@@ -1,20 +1,22 @@
 # Implementation milestones and gates
 
-更新: 2026-10-22。判定の詳細: [TEST_STATUS.md](TEST_STATUS.md)。自動テストの成功と実pixivでの成功を区別する。
+更新: 2026-10-23。判定の詳細: [TEST_STATUS.md](TEST_STATUS.md)。実MV3の合成試験と実pixivでの成功を区別する。
 
 ## Gate 0 — Feasibility first
 
-**ローカル開発環境: GO / 実pixivの実現可能性: NOT RUN**
+**ローカル開発環境: GO / 実pixiv: NO-GO（document 403、作品/API/原寸はNOT RUN）**
 
 - [x] Install deps; typecheck / tests / build。クリーン環境のWXT生成依存を修正しlockfileを追加。
 - [x] 実機検証の[手順・記録テンプレート](MANUAL_TESTS.md)を用意。
+- [x] 開発用一時Chromeプロファイルへ実MV3を読み込み、合成応答で注入・メッセージ・worker fetchを検証。
+- [x] 通常の実pixiv接続を試し、document 403を[証跡](evidence/live-connectivity-2026-10-23.json)へ記録。制限回避なし。
 - [ ] Chrome/Edgeで作品ページ注入、1枚/複数枚を確認。
 - [ ] 正規閲覧中の `/ajax/illust/{id}/pages` が原寸URLを返すことを確認。
 - [ ] 実際のMV3 background fetchの200/403等と原因を記録。
 - [x] 直接取得制限時のローカルファイルfallbackを実装し、合成403/429でテスト。実サイトでは未検証。
 - [ ] 実サイト検証時のbrowser version / URL type / HTTP statusの記録。
 
-実機環境を利用できないため、CODEX_FIRST_PROMPT.mdのPhase 0に従ってNOT RUNと記録したうえで、Phase 1のローカル実装・自動検証を進めた。実機GOを意味しない。
+初回は実MV3が未検証だったが、今回は実Chromeの拡張として合成試験を完了。実サイトdocumentへのアクセスが拒否されたため、それ以降の実作品受入をNOT RUNのまま残す。
 
 ## Gate 1 — Releaseable MVP (P0)
 
@@ -27,6 +29,7 @@
 - [x] Streamed fetch cap、送信元/URL/現在作品の検証、クリック時のみ通信。
 - [x] 取消、単一実行枠、SPAの古い結果破棄（必要な競合対策として前倒し）。
 - [x] 単体/DOM結合/合成Chromeテスト。Chrome/Edge用MV3ビルド。
+- [x] 実MV3と合成応答9件、公式reader/writer由来の人工fixture6件、Comment envelope不具合の修正。
 - [x] README、セキュリティ・プライバシー、合成ページのスクリーンショット。
 - [ ] 実Chrome/Edge拡張と実pixivでの受入。最小対応バージョン、コピー権限も確認。
 

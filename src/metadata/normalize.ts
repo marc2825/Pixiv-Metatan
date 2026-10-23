@@ -76,7 +76,19 @@ export function classifyTextChunks(chunks: Record<string, string>) {
     try { return parseMetadataJson(chunks[key]!); }
     catch { notes.push(`${key}: JSONが不正、または複雑さの上限を超えています。RAWを確認してください。`); return undefined; }
   };
-  const comment = readJson('Comment');
+  let comment = readJson('Comment');
+  // Match the official reader's one-level Comment envelope. Keep original RAW.
+  if (isRecord(comment) && Object.hasOwn(comment, 'Comment')) {
+    try {
+      if (typeof comment.Comment !== 'string') throw new Error('invalid-comment-envelope');
+      const decoded = parseMetadataJson(comment.Comment);
+      if (!isRecord(decoded)) throw new Error('invalid-comment-envelope');
+      comment = decoded;
+    } catch {
+      notes.push('Comment.Comment: 内側のJSONが不正、または安全上限を超えています。RAWを確認してください。');
+      comment = undefined;
+    }
+  }
   const workflow = readJson('workflow');
   const prompt = readJson('prompt');
   // Do not infer NovelAI from generic steps/sampler or signed_hash alone.

@@ -3,6 +3,7 @@ node_modules/
 .wxt/
 coverage/
 .test-browser/
+.verification/
 test-results/
 playwright-report/
 *.log
