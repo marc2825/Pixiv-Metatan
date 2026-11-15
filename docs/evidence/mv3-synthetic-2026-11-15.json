@@ -1,0 +1,1036 @@
+{
+  "schemaVersion": 1,
+  "mode": "synthetic-mv3",
+  "livePixivAccess": false,
+  "startedAt": "2026-11-15T05:37:20.738Z",
+  "summary": {
+    "passed": 17,
+    "failed": 0
+  },
+  "tests": [
+    {
+      "title": "production isolated hover and worker inspection from /tags/synthetic/artworks",
+      "result": "PASS",
+      "durationMs": 883,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "production isolated hover and worker inspection from /ranking.php?mode=daily",
+      "result": "PASS",
+      "durationMs": 829,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "production isolated hover and worker inspection from /users/456",
+      "result": "PASS",
+      "durationMs": 818,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "production isolated hover and worker inspection from /users/456/bookmarks/artworks",
+      "result": "PASS",
+      "durationMs": 815,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "production isolated hover and worker inspection from /bookmark_new_illust.php",
+      "result": "PASS",
+      "durationMs": 811,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "installed hover preserves display on worker 403 and accepts a local file without assigning it to the artwork",
+      "result": "PASS",
+      "durationMs": 783,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 403,
+          "status": 403,
+          "mime": "image/png",
+          "outcome": "failed"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "installed hover cancels a stale page during SPA navigation and rejects generic page message attempts",
+      "result": "PASS",
+      "durationMs": 884,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "outcome": "failed"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "two listing tabs retain the global single-original slot and allow cancellation",
+      "result": "PASS",
+      "durationMs": 1375,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "outcome": "failed"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "preview",
+          "worker": false,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "production injection, closed root and real runtime messaging inspect exactly one chosen image",
+      "result": "PASS",
+      "durationMs": 389,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "workflow, A1111, no metadata and JPEG remain distinguishable through the installed extension",
+      "result": "PASS",
+      "durationMs": 453,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/jpeg",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "real 403 response path offers explicit local fallback with no retry",
+      "result": "PASS",
+      "durationMs": 382,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 403,
+          "status": 403,
+          "mime": "image/png",
+          "outcome": "failed"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "independent official-reader/writer fixtures pass the actual worker and content script",
+      "result": "PASS",
+      "durationMs": 579,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/jpeg",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "denied artwork API keeps local original selection available without requesting an image",
+      "result": "PASS",
+      "durationMs": 364,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 429,
+          "status": 429,
+          "mime": "application/json",
+          "outcome": "failed"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "two tabs share one worker fetch slot; selecting another page cancels the owner request",
+      "result": "PASS",
+      "durationMs": 715,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "outcome": "failed"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 1,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "SPA discards old work and preserves sender validation across artwork IDs",
+      "result": "PASS",
+      "durationMs": 774,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "worker network interruption is acquisition failure, and a later explicit Inspect recovers",
+      "result": "PASS",
+      "durationMs": 383,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "outcome": "failed"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "image/png",
+          "outcome": "finished"
+        }
+      ],
+      "unexpected": []
+    },
+    {
+      "title": "15-second production timeout ends the operation and enables local fallback",
+      "result": "PASS",
+      "durationMs": 15359,
+      "mode": "synthetic-mv3",
+      "extensionLoaded": true,
+      "extensionArtifacts": {
+        "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+        "background.js": "5b13e1a376a39855b6a017a3d910e77205870ca6f059c97924a5812469900a50",
+        "content-scripts/pixiv.js": "edc84734ff3aec85606f8b505f3dd9a9b5b40c584791c30d0fcea1b43792d47c"
+      },
+      "browser": "156.0.8078.4",
+      "records": [
+        {
+          "kind": "document",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "text/html",
+          "outcome": "finished"
+        },
+        {
+          "kind": "pages",
+          "worker": false,
+          "configuredStatus": 200,
+          "status": 200,
+          "mime": "application/json",
+          "outcome": "finished"
+        },
+        {
+          "kind": "original",
+          "worker": true,
+          "page": 0,
+          "configuredStatus": 200,
+          "outcome": "failed"
+        }
+      ],
+      "unexpected": []
+    }
+  ]
+}

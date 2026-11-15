@@ -36,7 +36,7 @@ describe('privileged worker boundary', () => {
     expect(worker.fetcher).toHaveBeenCalledExactlyOnceWith(originalUrl(), { credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal: expect.any(AbortSignal) });
   });
   it.each([
-    {}, { ...sender, id: 'attacker' }, { ...sender, frameId: 1 }, { ...sender, tab: undefined },
+    {}, { ...sender, id: 'attacker' }, { ...sender, frameId: 1 }, { ...sender, tab: undefined }, { ...sender, tab: { id: -1 } },
     { ...sender, url: 'https://evil.example/artworks/123' }, { ...sender, url: 'https://www.pixiv.net.evil/artworks/123' },
   ])('rejects untrusted sender %j before fetching', async untrusted => {
     const worker = setup(); expect((await worker.handle(request, untrusted))?.status).toBe('access-denied'); expect(worker.fetcher).not.toHaveBeenCalled();
@@ -57,6 +57,44 @@ describe('privileged worker boundary', () => {
   it('does not return results if the tab navigates while reading', async () => {
     const worker = setup(); worker.tabUrl.mockResolvedValueOnce(sender.url).mockResolvedValue('https://www.pixiv.net/artworks/456');
     expect((await worker.handle(request, sender))?.status).toBe('access-denied');
+  });
+  it.each(['/tags/test/artworks', '/ranking.php?mode=daily', '/users/456', '/users/456/bookmarks/artworks', '/bookmark_new_illust.php', '/artworks/999'])('authorizes an explicit thumbnail inspection in exact pixiv context %s', async path => {
+    const worker = setup(), contextUrl = `https://www.pixiv.net${path}`;
+    worker.tabUrl.mockResolvedValue(contextUrl);
+    expect((await worker.handle({ ...request, contextUrl }, sender))?.status).toBe('found');
+    expect(worker.fetcher).toHaveBeenCalledOnce();
+  });
+  it.each(['https://evil.example/', 'https://www.pixiv.net.evil/', 'https://user@www.pixiv.net/', 'javascript:alert(1)', 42, null])('denies invalid operation context %j', async contextUrl => {
+    const worker = setup();
+    expect((await worker.handle({ ...request, contextUrl }, sender))?.status).toBe('access-denied');
+    expect(worker.fetcher).not.toHaveBeenCalled();
+  });
+  it('binds list inspections to the exact live tab URL before and after fetch', async () => {
+    const contextUrl = 'https://www.pixiv.net/tags/test/artworks?order=date';
+    const worker = setup(); worker.tabUrl.mockResolvedValue(contextUrl + '_d');
+    expect((await worker.handle({ ...request, contextUrl }, sender))?.status).toBe('access-denied');
+    expect(worker.fetcher).not.toHaveBeenCalled();
+    worker.tabUrl.mockResolvedValueOnce(contextUrl).mockResolvedValue('https://www.pixiv.net/users/456');
+    expect((await worker.handle({ ...request, contextUrl }, sender))?.status).toBe('access-denied');
+    expect(worker.fetcher).toHaveBeenCalledOnce();
+  });
+  it('does not allow legacy requests from non-artwork tabs', async () => {
+    const worker = setup(); worker.tabUrl.mockResolvedValue('https://www.pixiv.net/ranking.php');
+    expect((await worker.handle(request, sender))?.status).toBe('access-denied'); expect(worker.fetcher).not.toHaveBeenCalled();
+  });
+  it('cancels a list-context request on query-only SPA changes', async () => {
+    const contextUrl = 'https://www.pixiv.net/tags/test/artworks?q=one';
+    const worker = setup(waitingFetch()); worker.tabUrl.mockResolvedValue(contextUrl);
+    const pending = worker.handle({ ...request, contextUrl }, sender);
+    await vi.waitFor(() => expect(worker.fetcher).toHaveBeenCalledOnce());
+    worker.onNavigation(7, contextUrl.replace('one', 'two'));
+    expect((await pending)?.status).toBe('cancelled');
+  });
+  it('honors 429 cooldown without a second original fetch', async () => {
+    const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 429, headers: { 'retry-after': '120' } })));
+    expect((await worker.handle(request, sender))?.notes.join(' ')).toContain('http-429');
+    expect((await worker.handle({ ...request, requestId: 'again' }, sender))?.notes.join(' ')).toContain('http-429');
+    expect(worker.fetcher).toHaveBeenCalledOnce();
   });
   it.each([401, 403, 404, 429, 500])('reports HTTP %d and local fallback without retries', async status => {
     const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status })));

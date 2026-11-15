@@ -32,4 +32,5 @@ export const idat = () => chunk('IDAT', deflateSync(new Uint8Array([0, 0, 0, 0, 
 export function png(...entries: Uint8Array[]): Uint8Array<ArrayBuffer> { return concat(pngSignature, header(), ...entries, idat(), chunk('IEND')); }
 export function pngWithText(entries: Record<string, string>): Uint8Array<ArrayBuffer> { return png(...Object.entries(entries).map(([k, v]) => text(k, v))); }
 export const originalUrl = (id = '123', page = 0, extension = 'png') => `https://i.pximg.net/img-original/img/2026/10/22/00/00/00/${id}_p${page}.${extension}`;
-export const pagePayload = (id = '123', count = 2) => ({ error: false, body: Array.from({ length: count }, (_, p) => ({ urls: { original: originalUrl(id, p) } })) });
+export const previewUrl = (id = '123', page = 0) => `https://i.pximg.net/img-master/img/2026/10/22/00/00/00/${id}_p${page}_master1200.jpg`;
+export const pagePayload = (id = '123', count = 2, previews = false) => ({ error: false, body: Array.from({ length: count }, (_, p) => ({ urls: { original: originalUrl(id, p), ...(previews ? { regular: previewUrl(id, p) } : {}) } })) });

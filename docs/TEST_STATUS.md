@@ -1,69 +1,57 @@
-# Verification status — 2026-10-23 (JST)
+# Verification status — 2026-11-15 (JST)
 
-## Gate判定
-
-| Gate | 判定 | 根拠 |
-|---|---|---|
-| Gate 0 開発環境 | GO | 型チェック・単体/結合テスト・Chrome/Edgeビルド |
-| Gate 0 実pixiv | NO-GO | 通常のトップページ接続がHTTP 403。作品/API/原寸はNOT RUN |
-| Gate 1 合成ページでの実MV3 | GO | 本番ビルドを一時Chromeプロファイルに読み込み、実際のcontent script/worker通信で9件PASS |
-| Gate 1 リリース | NO-GO | 実作品、ログイン状態、実Edgeの受入未完了 |
-| Gate 2 | 未着手 | Gate 1実サイト受入待ち。公式処理とのローカル照合を追加 |
+**実装・合成試験: GO。実pixiv受入・リリース: NO-GO。** 通常接続のdocumentが403で、実作品のAPI・画像・DOMは未検証。原寸403の原因は特定していない。
 
 ## 最終結果
 
-| 検証 | 結果 | 証拠・範囲 |
+| 検証 | 結果 | 範囲 |
 |---|---|---|
 | `npm run typecheck` | PASS | WXT prepare + TypeScript strict |
-| `npm test` | PASS | 6 files / 141 tests |
-| `npm run build` | PASS | Chrome MV3、約39.80 kB |
-| `npm run build:edge` | PASS | Edge MV3、約39.80 kB。実Edge起動の証拠ではない |
-| `npm run test:browser` | PASS | 既存アダプタによる合成Chrome試験6件 |
-| `npm run test:extension` | PASS | 実MV3拡張 + 合成応答9件、Chrome for Testing 155.0.8059.84 |
-| 公式ローカル処理との照合 | PASS | 人工fixture6件。NovelAI通常PNG reader、ComfyUI SaveImageクラス、偽署名の拒否 |
-| 実pixivトップページ | FAIL | HTTP 403、HTML。認証なし・応答差替えなし・ヘッダー偽装なし。原因は特定していない |
-| 実作品のsingle/multi/NovelAI/ComfyUI/JPEG/メタなし | NOT RUN | サイト接続の拒否と、正規のテスト作品URL未提供。推測URLへ取得しない |
-| 実pixiv API・原寸HTTP / 実作品でのfallback | NOT RUN | トップページ403で停止。原寸リクエスト0 |
-| 実pixivでのSPA・タブ・取消・通信異常 | NOT RUN | 合成MV3試験での結果と区別 |
-| 正規ログイン/年齢制限作品、実Edge、最小120 | NOT RUN | 既存プロファイル・認証情報の移植なし。Edge実行ファイルなし |
-| NovelAI cloud Inspect・ComfyUIサーバーとの比較 | NOT RUN | 画像アップロード、モデル生成、サーバー起動は未実施 |
-| Stealth / キャラクター別 / JPEG-WebP EXIF / 正当な署名 | NOT RUN | 未実装。本拡張はverified/invalidを生成しない |
-| `git diff --check` / 生成manifest | PASS | 権限追加なし。pixiv/pximgのみ |
+| `npm test` | PASS | 8 files / 191 tests。既存141件を維持 |
+| `npm run build` | PASS | Chrome MV3、約57.69 kB |
+| `npm run build:edge` | PASS | Edge MV3、約57.69 kB。実Edge起動とは別 |
+| `npm run test:browser` | PASS | 12件。テスト用アダプタ・合成ページ/HTTP |
+| `npm run test:extension` | PASS（17件） | 本番MV3・closed root・runtime/Worker。合成HTTPのみ |
+| 独立したreader/writer fixture | PASS | 既存の人工6件を単体・本番Worker経由で維持。実生成・正当な署名の証明ではない |
+| `git diff --check` / 生成manifest | PASS | API権限なし、pixiv/pximgホストのみ。依存追加なし |
+| 実pixivトップページ | FAIL | Chrome 156.0.8078.4、通常HTTPS、document HTTP 403 / text/html |
+| 実pixiv一覧DOM・ホバー・複数枚 | NOT RUN | document拒否。正規のテスト作品URLも未指定 |
+| 実作品API・原寸URL・CDN取得 | NOT RUN | document拒否で停止。原寸リクエスト0 |
+| 通常操作で原寸を開く / Workerとの比較 | NOT RUN | 作品API・原寸URL未取得 |
+| ログイン/公開範囲/年齢制限の正規閲覧 | NOT RUN | 認証移植なし。新規ログアウトプロファイル |
+| 実Edge / 最低Chrome・Edge 120 / 高DPI / 長時間寿命 | NOT RUN | Edgeビルドと実Edge動作を区別 |
+| Stealth / V4-V5キャラクターPrompt / EXIF / 署名検証 | 未実装 | 今回の範囲外。verified/invalidを生成しない |
 
-未解消の自動テストFAILはありません。実サイトの403は未解決の接続結果であり、受入PASSには数えていません。
+## 自動試験で確認したこと
 
-## 証跡
+- 従来の通常PNG、CRC/構造/圧縮/サイズ/JSON上限、NovelAI/ComfyUI/A1111、未対応・メタなし、安全なテキスト表示、署名の自己申告を維持。
+- 遅延追加のサムネイル、250ms遅延・通過時の取消、プレビューへの移動・離脱猶予、高速ホバーの遅いAPI応答、単一/複数枚、ページ境界と番号。
+- 小さなwheelデルタの蓄積、連続trackpadの1ジェスチャ、クールダウン、ボタン/左右キー、単一画像と通常リンク操作の維持。
+- 狭幅ライト/ダークで画面端の配置、キーボードでの進入・Tab・Escape・フォーカス復帰、Prompt内キー操作、ページスクロールの抑制範囲。
+- API/原寸の401/403/429、API timeoutの分類、原寸本番15秒timeout、通信エラー、表示用画像の継続とローカル読込。
+- ページ別キャッシュ再利用、件数/容量/LRU/TTL、従来/hover間の一覧・429待機の共有、API直列化・中止済み待機の除外、429 cooldown、古い解析結果の取消、SPA/BFCache/破棄。
+- 自拡張ID・frame・tab・pixiv origin・操作時の完全な現在URL、取得後の再照合、作品/ページ/URL不一致、不正メッセージの拒否。page postMessageからの要求は受け付けない。
+- 実MV3合成試験で検索/ランキング/投稿/ブックマーク/フォロー新着からの解析、Worker起点の原寸1件、2タブの単一枠・取消、ローカル結果の分離。
 
-- [live-connectivity-2026-10-23.json](evidence/live-connectivity-2026-10-23.json): 実ブラウザ・通常HTTPSの403。日時、ブラウザ、基準コミット、作業ツリー変更有無、検査ビルドのSHA-256、リクエスト数を記録。
-- [mv3-synthetic-2026-10-23.json](evidence/mv3-synthetic-2026-10-23.json): 各試験の結果、実ブラウザ版、ビルドSHA-256、合成HTTP状態とworker起点かどうか。
-- [公式照合fixtureの根拠](../tests/reference/README.md)、[独立した期待値](../tests/reference/fixtures/expected.json)。
+新UIで結果領域が増えたため、既存ブラウザ試験のlocatorsを完全一致にした。API直列化に合わせ、既存DOM試験では通信開始を待ってから遷移/破棄し、従来の取消保証を維持した。検証項目や期待値は削除していない。閉じたShadow DOMではdocument側のcomposedPathから内部ノードが見えないため、結果内キー操作の除外にはshadow.activeElementを使い、回帰試験を追加した。
 
-証跡には画像本体、第三者のPrompt、Cookie、トークン、実作品URLを含めません。HEADは`b31a0b9`、今回の修正は作業ツリー上のため、検査対象はコミット番号だけでなく生成物ハッシュで区別します。
+## 実サイトの403と証跡
 
-## 今回の不具合と修正
+[2026-11-15通常接続](evidence/live-connectivity-2026-11-15.json)は無認証の一時Chromeプロファイルで、応答差替え・ヘッダー偽装・proxyなし。documentで停止し、API/原寸の再試行はしていない。これは依頼にある原寸`http-403`そのものの再現ではない。API成功・原寸URLの妥当性・画像配信側のアクセス条件・Referer/Cookie/CORSの因果関係は確認できていない。
 
-公式`nai_sig.Metadata.decoded_comment`が扱う1段の`Comment` envelopeについて、旧実装は内側のPrompt/Negative/Seedを抽出しませんでした。公式readerで読み取った人工PNGを入力してFAILを再現し、1段だけ安全にJSON展開する修正を加えました。RAWを保存し、壊れた内側JSON、非object、深いwrapper、偽署名もテストしました。
+[本番MV3の合成証跡](evidence/mv3-synthetic-2026-11-15.json)にはstatus/MIME、件数、Worker起点か、生成物SHA-256を保存する。画像・Prompt・RAW・Cookie・トークン・実作品URL・HARは含めない。ライブ証跡は接続確認時の中間ビルドのハッシュであり、最終合成試験のビルドと区別する。
 
-テスト基盤ではNodeのJSON import属性と、結果未生成中のポーリングを修正しました。ファイル選択はDevToolsから本物のボタンをクリックし、本番の閉じたShadow DOMとisolated content scriptを変更しません。
+過去の2026-10-23証跡は履歴として残している。現状の判定はこの文書と2026-11-15の証跡を参照。
 
-## 実MV3試験で新たに確認したこと
+## 実行環境・制約
 
-1. 本番content scriptの注入、closed root、Inspect前の原寸取得なし、ページ選択とruntime.sendMessage。
-2. NovelAI/ComfyUI/A1111・メタなし・JPEGの区別。独立fixtureのRAW/正規化値も実worker経由で確認。
-3. 画像403とAPI429を別の経路で発生させ、明示ファイル選択のfallbackを確認。自動再試行なし。
-4. 2タブを同じworkerへ接続し、単一の取得枠、busy、所有者側の選択変更による取消、次の選択の成功。
-5. 実際のhistory.pushStateとタブURL確認、古い候補・結果の破棄。
-6. worker fetchの通信中断、後続の明示Inspectによる復旧。
-7. テスト用に時間を短縮せず、本番15秒でタイムアウトとUI復旧。
+Linux x64、Node 24.21.0、npm 11.19.0、Chrome for Testing 156.0.8078.4、Playwright 1.64.1。初回のブラウザ試験は共有ライブラリ不足で起動できなかったが、一時領域の既存ライブラリを指定して再実行した。リポジトリやOSに依存を追加していない。環境指定:
 
-HTTP応答を合成した試験では、実pximgの成功やアクセス制御の妥当性を主張しません。Chromeのホスト権限・content script隔離・拡張メッセージを使う経路は通しましたが、Edge・MV3の長時間寿命・実pixivのDOM/CSPは別項目です。
+```bash
+LD_LIBRARY_PATH=/tmp/portfolio-ci-libs/root/usr/lib/x86_64-linux-gnu \
+PAMI_CHROME_PATH=/home/marc2825/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome \
+npm run test:browser
+# 同じ指定で npm run test:extension / npm run verify:live
+```
 
-## 実行環境と再現
-
-Linux x64、Node 22.14.0、npm 10.9.2、TypeScript 5.9.3、WXT 0.21.4、Vitest 5.0.5、Vite 8.3.5、Playwright 1.64.1。
-
-Node/npmは`/tmp/pami-tools/node-v22.14.0-linux-x64/bin`、Chrome for Testingは`/tmp/cp-tree-tools/chrome-linux64/chrome`を使用。Chrome起動には実行環境のソケット制限外での実行が必要でした。通常の開発環境ではPATHと`PAMI_CHROME_PATH`を適宜設定してください。
-
-ローカル公式照合は一時Python環境のPillow/NumPy/PyNaClを使用。外部のソースやPython依存を拡張へ追加していません。標準の`npm test`はコミットした人工fixtureだけで動き、Python・ネットワークを必要としません。
-
-2026-10-22の初回検証は129 tests / アダプタ6件PASS。その後`b31a0b9`としてコミット。今回のPhase A/Bはその後続で、[手動検証手順](MANUAL_TESTS.md)と`npm run verify:live`を追加しています。実サイト403を回避する実装や公開操作は行っていません。
+ブラウザ起動・通常接続はsandbox外で実行した。一時プロファイルは試験後に削除し、既存ユーザープロファイルは操作していない。次は[実機確認](MANUAL_TESTS.md)で正規に閲覧できるテスト作品のDOM・API/CDN・Chrome/Edgeを確認する。

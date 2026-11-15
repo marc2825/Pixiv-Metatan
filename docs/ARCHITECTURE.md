@@ -1,81 +1,66 @@
-# 技術設計 / Architecture
+# Architecture
 
-更新: 2026-10-23。実装対象はGate 1。実MV3は合成応答で検証済み。実pixivはdocument HTTP 403で作品/API/原寸を未検証。
+更新: 2026-11-15。追加依存・バックエンド・MV3権限の追加なし。
 
-## 信頼境界と通信
+## UIと取得経路
 
 ```text
-pixiv top-level tab / isolated content script
-  └─ closed Shadow DOM (mountInspector)
-       ├─ パネルを開く / 一覧取得のクリック
-       │    └─ same-origin /ajax/illust/{id}/pages
-       │       → 1 MiB/15秒、JSONスキーマ、配列順序、作品ID/ページ別URL検証
-       ├─ Inspectのクリック → {type, requestId, artworkId, page, url}
-       │    └─ runtime message → MV3 service worker
-       │         ├─ 自拡張ID + pixiv origin + top frame + tab ID
-       │         ├─ tabs.getで現在の作品ID確認（SPAでsender.urlが古い場合に対応）
-       │         ├─ HTTPS i.pximg.net + img-original/img/.../{id}_p{page}.ext
-       │         ├─ 1つのグローバル実行枠（tabs.getより前に確保）
-       │         ├─ credentials: omit / redirect: error / no-referrer
-       │         ├─ 15秒 / 実受信48 MiB / MIMEとmagicの照合
-       │         └─ ローカル解析 → 現在のタブ再確認 → JSON互換の結果
-       ├─ 取り消し・SPA遷移・閉じる → abort + requestId付き取消要求
-       └─ 明示ファイル選択 → サイズ確認 → bounded stream → 同じ解析器
+pixiv top-level / isolated content script / closed Shadow DOM
+  ├─ app.ts: 作品ページの従来パネル、ページselect、ローカル読込
+  └─ preview.ts: イベント委譲のhover/focus、フローティングパネル
+       ├─ 250ms後、その作品だけの /ajax/illust/{id}/pages
+       │    └─ getArtworkPages: same-origin session / redirect:error
+       │         → 1 MiB / 15秒 / スキーマ / 元URL・縮小URL・ページ順の検証
+       ├─ 通常の <img src=API derivative>（p0は元サムネイルも可）
+       │    └─ 表示専用。originalへの代替、canvas抽出、CORS読込なし
+       ├─ wheel / 前後 / 左右キー → 表示ページだけ切替、解析しない
+       ├─ Metadataクリック → {type, requestId, artworkId, page, url, contextUrl}
+       │    └─ runtime.sendMessage → MV3 service worker
+       │         → 自拡張 / pixiv origin / frame 0 / tab ID / 完全な現在URL
+       │         → 原寸URLのhost・path・作品ID・ページを検証
+       │         → グローバル1枠 / credentials:omit / no-referrer / redirect:error
+       │         → 15秒 / 実受信48 MiB / MIME・magic / 既存のローカル解析器
+       │         → 再び現在URL照合 → JSON互換結果
+       └─ ファイルの明示選択 → inspectLocalFile → 同じ解析器
 ```
 
-元URLは現在アクセスできる作品APIの応答からのみ採用し、構築しません。Workerでも作品・ページ・URLを照合します。APIから取得したという根拠はisolated content scriptの信頼境界に置きます。ウィンドウメッセージ、DOM属性、ページスクリプトから汎用fetchを呼ぶ橋は公開しません。Workerは別の作品や任意サイトのURLを取得しません。
+表示と解析は異なる経路。`<img>`はページの通常のブラウザ表示条件に従う。拡張からRefererを指定せず、Cookieの読取・移植もしない。元サムネイルとAPIの縮小画像だけを表示し、解析用原寸をhoverで取得しない。APIに縮小URLがないページでは表示不可を説明し、原寸へ切り替えない。
 
-`sender.url`はSPAの前のURLを示す場合があるため、送信元のpixivオリジンと現在のタブの作品IDを分けて確認します。pixivのhost permissionは、このタブURL確認とサイト注入に利用します。`tabs` / `cookies` / `storage` / `webRequest` / `offscreen`等の追加権限はありません。Chromeのhost permissionではパス制限が効かないため、画像のパス制限を実装内で強制します。
+## 信頼境界
 
-非同期メッセージ応答は`return true` + `sendResponse`。Promiseを返すlistenerの新しいChrome依存を避けます。Chrome/Edge 120以降を最低対象としますが、実機の最小バージョン検証は未実施です。
+`thumbnailFromTarget`は画像を含む正規pixiv作品リンクを対象にし、DOM由来の画像も作品ID/ページ0と厳密に照合する。タイトル/作者名は長さ制限付きのテキスト。URLをDOMやAPIから得ても信頼済みにしない。
 
-## スケジューリング
+元URLをAPIから得たという根拠はisolated content script内に置く。Workerはスキーマに加えHTTPS、正確なhost/path、作品/ページ、送信元とタブを独立検証する。`contextUrl`は操作時の完全なpixiv URLであり、取得前後の`tabs.get`と完全一致が必要。これによりランキングなどの表示作品を検査できる。`contextUrl`なしの旧要求は従来どおり現在タブの作品ID一致が必要。信頼境界の根拠をページのpostMessageや任意DOM属性で登録する機能はない。
 
-- 一覧はクリック時だけ。画像取得はInspectのクリック時だけ。SPA検出はURL確認のみ。
-- 複数タブを含めWorker全体で画像取得・読込・解析は1件。追加要求をキューに積まず`busy`を返します。
-- 取消は同じタブ・requestIdだけ。abortを要求しても、元処理のfinallyまで枠を解放しません。
-- タブ移動・ロード・終了もWorker側で取消。UI側は世代番号と現在の作品IDで古い一覧・結果を破棄。
-- BFCache入りでは候補・結果を破棄し、復帰後に再度クリックが必要。ホスト要素の除去・WXT無効化ではタイマーとlistenerを破棄。
+`sender.url`はSPA以前の値を持つ場合があるため、送信元originと現在URLの検査を分離する。URL変更・タブloading/終了でもWorkerが中止する。同一タブ・requestIdだけが取消可能。全タブ共通の枠は最初のawaitより前に確保し、body/parseがsettleするまで解放しない。非同期応答は`return true`と`sendResponse`でChromeの互換性を維持する。
 
-## データモデル
+host permissionは`www.pixiv.net`と`i.pximg.net`のみ。`tabs`、`cookies`、`storage`、`webRequest`等の追加API権限なし。画像パスの制約は実装で強制する。
 
-`src/metadata/types.ts`が型の定義です。
+## ライフサイクル・負荷
 
-- `status`: found / no-metadata / unsupported-format / access-denied / too-large / parse-error / cancelled / busy
-- `format`: png / jpeg / webp / other
-- `generator`: 既存コード互換の代表値。UIは`detected[]`と`evidence[]`を使い、混在した自己申告を保持。
-- `confidence`: metadata-indicates / weak / unknown。現実装ではweakを生成しません。
-- `novelaiSignature`: not-checked / not-present / verified / invalid。現実装は最後の2つを生成しません。
-- `fields`: 表示用の文字列辞書。通常NovelAIの共通Prompt/Negative等とA1111設定を抽出。ComfyUIはグラフを保持し、唯一のPromptを推測しない。
-- `rawTextChunks`: 重複のない通常テキストキー。`textEntries`: 元のチャンク種別・キー・値を重複込みで保持。
-- `notes`: 失敗・不確実性・未対応の説明。`source`: pixiv作品/ページ/URL、または明示選択したファイル名。
+- DOM全体の走査・MutationObserverなし。mouseover/out、focusin/outを委譲。ホバー250ms、離脱200ms。
+- 300msの監視はURL確認・キャッシュ掃除・対象要素の接続確認のみ。操作ハンドラと非同期結果でもURL/世代を確認する。
+- 別作品・ページ・SPA・close・BFCacheで古い作業をabortし、世代が違う結果を無視する。元リンクは書き換えない。画面外のカード・削除されたカードは閉じる。
+- レイアウトは元カードのrectから左右を選び、ビューポート内へクランプ。resize/scrollで追従する。
+- APIは従来パネルとhover共用のstore内で直列化し、中止済みの待機操作は取得しない。Worker原寸はグローバル1件。表示は現在ページのimg要素1つで、隣接ページは先読みしない。
+- 429のAPI cooldownはタブ内、原寸cooldownはWorker内。Retry-After（秒/日付）を最長24時間・最低60秒で扱う。Worker再起動時はメモリのcooldownも失われる。
+- `MemoryCache`はLRU＋2分のTTL。一覧24件/推定2 MiB、結果8件/推定8 MiB。サイズはUTF-16 JSONの保守的な概算で、ブラウザの実ヒープ上限とは異なる。上限を超える単一結果は表示だけ行う。元バイト列・Object URLは保持しない。
+- キャッシュはSPA/BFCache/破棄で全消去。ローカルファイルの結果をpixivページのキャッシュへ登録しない。
 
-NovelAIの検出にはSoftwareの自己申告を使用し、汎用のsteps/samplerや署名文字列だけを根拠にしません。公式reader互換でComment内のComment文字列を1段だけ読み、RAWは保持します。内側も同じJSON上限で検証し、不正なら値の抽出を止めます。ComfyUIはAPIノードまたはworkflow.nodesのJSON構造を確認します。ComfyUIは生成エンジンではありません。独自ノードの中身やモデルの意味は解釈しません。
+## 解析と表示
 
-## PNGとサイズ制限
+`src/metadata/`はpixiv/UIから独立した既存の純粋な解析層。状態・根拠・fields・RAW・署名状態は`types.ts`を維持する。PNG構造/CRC/文字コード/重複、2 MiBの通常テキスト予算、上限付きdeflate、深さ64/50,000値のJSON制限を維持した。48 MiB/40百万画素/4096チャンク/128テキストチャンク。
 
-- ファイル48 MiB、寸法40百万画素、全チャンク4096、テキストチャンク128。
-- PNGシグネチャ、全チャンクの境界とCRC、IHDRの寸法/色形式、PLTE、IDAT連続性、IENDを確認。未知のcritical chunkは拒否。
-- PNG tEXtはISO-8859-1。ブラウザの`TextDecoder('latin1')`はWindows-1252なので使用しない。
-- zTXt / 圧縮iTXtはネイティブ`DecompressionStream('deflate')`で展開し、ストリームを2 MiBの共通予算で制限。圧縮状態のテキスト総量も2 MiB以下。
-- iTXtは厳格なUTF-8、圧縮フラグ/方式/ヘッダーを検証。不正ならparse-error。
-- 重複キーワードは判定から除外し、RAWに保持。署名の存在申告は重複時もnot-checked。
-- JSONは2 MiB、深さ64、最大50,000値。RAWは失わず、不正JSONを検出根拠に使わない。
-- 実受信バイトを数える可変長バッファを使用。細かいチャンクが多数届いてもチャンク配列の管理メモリが増え続けない。
-- IDAT画素は展開しないため、Stealth未検査。画像として完全にデコード可能かまでは保証しない。
+PromptとNegativeはスクロール領域に表示し、設定はコンパクトな一覧。ComfyUIとRAWは開いたときだけ描画する。全てtextContent、コピーはクリック時だけ。not-presentは解析した通常テキスト内の署名不在で、Stealthや生成元の証明ではない。verified/invalidを生成する実装はない。
 
-ローカルファイルは`.size`を読んでからstreamで読み込みます。フルサイズのarrayBufferを先に確保しません。ネットワーク応答はContent-Lengthに依存せず制限を強制し、超過・拒否時はbodyをcancelします。
+## 403の調査結果
 
-## UI・プライバシー
+旧コードも新コードも、APIはpixiv同一オリジンセッション、原寸は拡張Workerの無認証・Refererなしの取得。APIは`pixiv-pages-http-*`、原寸は`http-*`で区別し、UIも失敗層を明記する。
 
-全メタデータはtextContentで描画。JSONはデータとしてだけ扱い、HTML/Markdown/スクリプトを実行しません。RAWとComfyUIは展開時のみ描画。コピーはクリック時のみで、ブラウザが拒否した場合は手動コピーを案内します。永続保存・解析ログ・外部API・テレメトリーはありません。
+2026-11-15の通常接続は**document 403**で停止。API/原寸URLの正しさ、通常ブラウザで原寸を開けるか、画像配信側の403、ログイン/公開範囲/Edge差はNOT RUN。Refererが原因だと断定できる証拠はない。401/403/429では状態を保持し、表示可能な縮小画像と明示ファイル選択を提供する。
 
-## 残る境界検証
+[Chrome公式: Cross-origin network requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)は、content scriptの同一オリジン制約と拡張originのhost permissionを区別している。これは実pixivのアクセス許可やサーバーが拒否する理由の証明ではない。
 
-`test:browser`は従来のテスト用アダプタです。`test:extension`は生成済みの本番ビルドを一時Chromeプロファイルへ読み込み、closed Shadow DOMをDevToolsで操作します。ページ・API・原寸の応答は合成ですが、実際のcontent script隔離、runtime messaging、worker fetch、tabs.getと取消を通します。テスト用の権限やメッセージ橋を製品に加えません。
+## テスト境界
 
-`verify:live`は通常の実サイト接続用で、作品URLと0始まりのページを指定して原寸を1回だけ検査します。認証は移植せず、画像・Prompt・RAW・URLを証跡へ保存しません。document拒否時は停止し、エラーをPASSへ変換しません。ビルドSHA-256と状態だけ記録します。Nodeの開発用コマンドであり、拡張から外部処理を呼ぶ機能ではありません。
-
-実pixivはdocument 403のため作品を検査できていません。未文書化API、ログイン状態、原寸200/403、実EdgeとMV3の長時間寿命は[手動検証](MANUAL_TESTS.md)が必要です。[Gate 2調査](NOVELAI_RESEARCH.md)を参照。
-
-参照: [Chrome cross-origin requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)、[Chrome messaging](https://developer.chrome.com/docs/extensions/develop/concepts/messaging)、[W3C PNG 3](https://www.w3.org/TR/png-3/)。
+Vitestは純粋解析・URL/認可・DOM競合・cache/wheel、`test:browser`はテスト用アダプタと合成ページ、`test:extension`は実際の本番MV3・closed root・Worker通信を合成応答で検査する。既存の解析fixtureを流用し、実画像はリポジトリに含めない。[実機検証](MANUAL_TESTS.md)と[結果](TEST_STATUS.md)を参照。

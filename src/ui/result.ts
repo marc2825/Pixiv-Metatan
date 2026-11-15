@@ -44,11 +44,18 @@ export function renderResult(container: HTMLElement, result: InspectionResult): 
   for (const item of result.evidence) {
     const p = document.createElement('p'); p.textContent = `根拠 [${item.source}]: ${item.detail}`; container.append(p);
   }
+  const settings = document.createElement('dl'); settings.className = 'metadata-settings';
   for (const [key, value] of Object.entries(result.fields)) {
     if (key.startsWith('ComfyUI')) { container.append(disclosure(key, () => value)); continue; }
-    const label = document.createElement('h4'); label.textContent = key;
-    container.append(label, pre(value));
+    if (/(?:^| )prompt$|(?:^| )negative$/i.test(key)) {
+      const label = document.createElement('h4'); label.textContent = key;
+      container.append(label, pre(value));
+    } else {
+      const label = document.createElement('dt'); label.textContent = key;
+      const text = document.createElement('dd'); text.textContent = value; settings.append(label, text);
+    }
   }
+  if (settings.children.length) container.append(settings);
   if (result.textEntries.length) container.append(disclosure('RAWテキストチャンク（重複を含む）', () => JSON.stringify(result.textEntries, null, 2)));
   for (const note of result.notes) {
     const p = document.createElement('p'); p.textContent = note; container.append(p);
@@ -60,6 +67,9 @@ export function renderResult(container: HTMLElement, result: InspectionResult): 
     ['正規化JSONをコピー', () => JSON.stringify(result, null, 2)],
   ];
   if (result.source?.kind === 'pixiv') { const url = result.source.url; copies.push(['URLをコピー', () => url]); }
+  for (const [key, value] of Object.entries(result.fields)) {
+    if (/(?:^| )prompt$|(?:^| )negative$/i.test(key) || key.startsWith('ComfyUI')) copies.push([`${key}をコピー`, () => value]);
+  }
   for (const [label, value] of copies) {
     const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = label;
     copy.addEventListener('click', () => {

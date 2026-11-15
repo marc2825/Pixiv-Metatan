@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "mode": "live-pixiv",
+  "startedAt": "2026-11-15T05:13:13.897Z",
+  "revision": "77790fb2246eee7f90aa4369d0c00412b123ebde",
+  "worktreeDirty": true,
+  "extensionArtifacts": {
+    "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
+    "background.js": "5ffd8f7aa296b42218fc62b9d034bdf1484a2f89a42bd33c12c201aaea239f89",
+    "content-scripts/pixiv.js": "4ad156cd31a9a2648c0cc353b8f23ae42a5f0606fd1576683d6c908f9b386429"
+  },
+  "signedIn": false,
+  "credentialsImported": false,
+  "interception": false,
+  "imageBytesStored": false,
+  "targetType": "home",
+  "page": 0,
+  "checks": {
+    "document": {
+      "result": "FAIL",
+      "status": 403,
+      "mime": "text/html; charset=UTF-8"
+    },
+    "injection": {
+      "result": "NOT RUN"
+    },
+    "pagesApi": {
+      "result": "NOT RUN"
+    },
+    "original": {
+      "result": "NOT RUN"
+    },
+    "formatAndResult": {
+      "result": "NOT RUN"
+    },
+    "localFallback": {
+      "result": "NOT RUN"
+    }
+  },
+  "network": [],
+  "originalRequests": 0,
+  "notes": [
+    "Document denied or unavailable. No retry, API request, original request or bypass was attempted."
+  ],
+  "browser": "156.0.8078.4",
+  "extensionLoaded": true,
+  "finishedAt": "2026-11-15T05:13:15.087Z"
+}

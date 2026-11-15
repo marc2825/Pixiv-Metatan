@@ -1,9 +1,12 @@
-import { InspectionError, MAX_IMAGE_BYTES, readBounded } from '../limits';
-import { inspectImage } from '../metadata/inspect';
-import { emptyResult, type InspectionResult } from '../metadata/types';
+import { InspectionError } from '../limits';
+import type { InspectionResult } from '../metadata/types';
+import { accessExplanation, localFallback } from '../network/failures';
 import type { CancelRequest, InspectRequest } from '../network/inspector';
 import { artworkIdFromUrl, getArtworkPages, type PixivPage } from '../pixiv/artworks';
+import { createPageStore } from '../pixiv/page-store';
 import { renderResult } from './result';
+import { mountHoverPreview } from './preview';
+import { inspectLocalFile } from './local-file';
 
 export interface AppDependencies {
   send: (message: InspectRequest | CancelRequest) => Promise<InspectionResult>;
@@ -13,6 +16,7 @@ const fallback = '取得できない場合は、pixivで正規に保存できる
 
 export function mountInspector(deps: AppDependencies): () => void {
   if (document.getElementById('pami-extension-root')) return () => {};
+  const pageStore = createPageStore(deps.pages ?? getArtworkPages);
   const host = document.createElement('div'); host.id = 'pami-extension-root';
   const shadow = host.attachShadow({ mode: 'closed' });
   const style = document.createElement('style');
@@ -24,7 +28,7 @@ export function mountInspector(deps: AppDependencies): () => void {
     [hidden]{display:none!important}.buttons{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
     button{padding:7px 10px;border:1px solid #8996a7;border-radius:8px;background:#fff;color:#172435}
     button:disabled{opacity:.55;cursor:default} :focus-visible{outline:3px solid #1686ec;outline-offset:3px}
-    select{width:100%;padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef2f6;padding:8px;border-radius:6px;max-height:200px;overflow:auto}
+    select{width:100%;padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef2f6;padding:8px;border-radius:6px;max-height:160px;overflow:auto}.metadata-settings{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px}.metadata-settings dt{font-weight:600}.metadata-settings dd{margin:0;white-space:pre-wrap}
     h4{margin:12px 0 4px}details{margin:12px 0}summary{font-weight:600}h2{font-size:15px;margin:0}
     @media(prefers-color-scheme:dark){.panel{background:#19222e;color:#edf1f7;border-color:#66748a}button,select{background:#263448;color:#edf1f7}pre{background:#0f1823}}
   `;
@@ -78,7 +82,7 @@ export function mountInspector(deps: AppDependencies): () => void {
   const navigation = () => {
     const next = artworkIdFromUrl(location.href);
     if (next === artworkId) return;
-    cancelPending(); artworkId = next; pages = []; loaded = false; inspected.clear(); fileContext = undefined;
+    cancelPending(); pageStore.clear(); artworkId = next; pages = []; loaded = false; inspected.clear(); fileContext = undefined;
     select.replaceChildren(); output.replaceChildren(); status.textContent = '作品が変わりました。「画像一覧を取得」を押してください。';
     controls();
   };
@@ -103,12 +107,12 @@ export function mountInspector(deps: AppDependencies): () => void {
     const controller = new AbortController(); listing = controller; loaded = false;
     pages = []; select.replaceChildren(); output.replaceChildren(); controls(); status.textContent = '作品の画像一覧を取得中…';
     try {
-      const next = await (deps.pages ?? getArtworkPages)(id, controller.signal);
+      const next = await pageStore.load(id, controller.signal);
       if (!current(token, id)) return;
       pages = next; loaded = true; options();
       status.textContent = `${pages.length}枚。対象を選び「元画像を検査」を押してください。`;
     } catch (error) {
-      if (current(token, id)) status.textContent = `作品情報を取得できませんでした: ${error instanceof InspectionError ? error.code : '通信または応答のエラー'}。${fallback}`;
+      if (current(token, id)) status.textContent = `作品情報を取得できませんでした。${accessExplanation(error instanceof InspectionError ? error.code : 'network-error', 'pages')} ${localFallback}`;
     } finally {
       if (listing === controller) listing = undefined;
       controls();
@@ -116,6 +120,7 @@ export function mountInspector(deps: AppDependencies): () => void {
   }
   toggle.addEventListener('click', () => {
     navigation(); if (!artworkId) return;
+    hover.close();
     if (!panel.hidden) { hide(); return; }
     panel.hidden = false; toggle.setAttribute('aria-expanded', 'true');
     fileButton.focus(); if (!loaded) void populate();
@@ -137,7 +142,7 @@ export function mountInspector(deps: AppDependencies): () => void {
     const op = { id: crypto.randomUUID(), controller: new AbortController(), remote: true };
     operation = op; controls(); output.replaceChildren(); status.textContent = '元画像を検査中…';
     try {
-      const result = await deps.send({ type: 'INSPECT_PIXIV_IMAGE', requestId: op.id, artworkId: id, page: page.page, url: page.original });
+      const result = await deps.send({ type: 'INSPECT_PIXIV_IMAGE', requestId: op.id, artworkId: id, page: page.page, url: page.original, contextUrl: location.href });
       if (!current(token, id)) return;
       renderResult(output, result); status.textContent = '検査結果を表示しました。';
       if (result.status === 'found' || result.status === 'no-metadata') { inspected.add(page.page); options(); }
@@ -158,20 +163,16 @@ export function mountInspector(deps: AppDependencies): () => void {
     const op = { id: crypto.randomUUID(), controller: new AbortController(), remote: false };
     operation = op; controls(); output.replaceChildren(); status.textContent = 'ローカルファイルを検査中…';
     try {
-      if (selected.size > MAX_IMAGE_BYTES) throw new InspectionError('too-large');
-      const bytes = await readBounded(selected.stream(), MAX_IMAGE_BYTES, op.controller.signal);
-      const result = await inspectImage(bytes, op.controller.signal);
+      const result = await inspectLocalFile(selected, op.controller.signal);
       if (current(token, id)) {
-        renderResult(output, { ...result, source: { kind: 'local', name: selected.name } });
+        renderResult(output, result);
         status.textContent = 'ローカルファイルの検査結果を表示しました。';
-      }
-    } catch (error) {
-      if (current(token, id)) {
-        renderResult(output, emptyResult(error instanceof InspectionError && error.code === 'too-large' ? 'too-large' : 'parse-error', ['ファイルを読み込めませんでした。上限は48 MiBです。']));
-        status.textContent = 'ローカルファイルの検査に失敗しました。';
       }
     } finally { file.value = ''; if (operation === op) operation = undefined; controls(); }
   })());
+  const hover = mountHoverPreview(shadow, deps, () => {
+    cancelPending(); panel.hidden = true; toggle.setAttribute('aria-expanded', 'false');
+  }, pageStore);
   // URL observation only: no automatic endpoint or image requests on navigation.
   const watch = window.setInterval(() => { if (!host.isConnected) destroy(); else navigation(); }, 300);
   const pageHide = (event: PageTransitionEvent) => {
@@ -183,7 +184,7 @@ export function mountInspector(deps: AppDependencies): () => void {
   };
   const destroy = () => {
     if (disposed) return;
-    disposed = true; cancelPending(); window.clearInterval(watch);
+    disposed = true; cancelPending(); hover.destroy(); window.clearInterval(watch);
     document.removeEventListener('keydown', escape, true); window.removeEventListener('pagehide', pageHide); host.remove();
   };
   window.addEventListener('pagehide', pageHide);

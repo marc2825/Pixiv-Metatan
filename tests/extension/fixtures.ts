@@ -4,14 +4,15 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { InspectorDriver } from './driver';
-import { originalUrl, pagePayload, png, pngWithText } from '../fixtures';
+import { originalUrl, pagePayload, png, pngWithText, previewUrl } from '../fixtures';
 
 export interface ImageReply { status?: number; mime?: string; body?: Uint8Array; delayMs?: number; failure?: boolean }
-export interface NetworkRecord { kind: 'document' | 'pages' | 'original' | 'other'; worker: boolean; configuredStatus?: number; status?: number; mime?: string; page?: number; outcome?: 'finished' | 'failed' }
+export interface NetworkRecord { kind: 'document' | 'pages' | 'original' | 'preview' | 'other'; worker: boolean; configuredStatus?: number; status?: number; mime?: string; page?: number; outcome?: 'finished' | 'failed' }
 export interface TestExtension {
   context: BrowserContext; worker: Worker; records: NetworkRecord[]; unexpected: string[];
   replies: Map<number, ImageReply>; apiStatus: number; pageCount: number;
   open: (id?: string) => Promise<{ page: Page; driver: InspectorDriver }>;
+  openListing: (path?: string) => Promise<{ page: Page; driver: InspectorDriver }>;
 }
 
 export const test = base.extend<{ extension: TestExtension }>({
@@ -45,6 +46,11 @@ export const test = base.extend<{ extension: TestExtension }>({
           await page.goto(`https://www.pixiv.net/artworks/${id}`);
           return { page, driver: await InspectorDriver.create(activeContext, page) };
         },
+        async openListing(path = '/tags/synthetic/artworks') {
+          const page = await activeContext.newPage();
+          await page.goto(`https://www.pixiv.net${path}`);
+          return { page, driver: await InspectorDriver.create(activeContext, page) };
+        },
       };
       await context.route('**/*', async route => {
         const request = route.request(), url = new URL(request.url());
@@ -53,12 +59,18 @@ export const test = base.extend<{ extension: TestExtension }>({
         records.push(record); byRequest.set(request, record);
         if (request.isNavigationRequest() && url.origin === 'https://www.pixiv.net') {
           record.kind = 'document'; record.configuredStatus = 200;
+          if (!/^\/artworks\//.test(url.pathname)) return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html lang="ja"><title>Synthetic MV3 listing</title><style>body{margin:30px;font:14px system-ui}a.card{display:inline-block;margin:20px}a.card img{width:100px;height:100px}</style><h1>Synthetic listing</h1><a id="a" class="card" href="/artworks/123"><img alt="Synthetic 123" src="${previewUrl()}"></a><a id="b" class="card" href="/artworks/456"><img alt="Synthetic 456" src="${previewUrl('456')}"></a></html>` });
           return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ja"><head><title>Synthetic MV3 test</title></head><body><h1>Synthetic artwork, no external assets</h1></body></html>' });
         }
         const api = /^\/ajax\/illust\/([1-9]\d*)\/pages$/.exec(url.pathname);
         if (url.origin === 'https://www.pixiv.net' && api) {
           record.kind = 'pages'; record.configuredStatus = extension.apiStatus;
-          return route.fulfill({ status: extension.apiStatus, json: pagePayload(api[1], extension.pageCount) });
+          return route.fulfill({ status: extension.apiStatus, json: pagePayload(api[1], extension.pageCount, true) });
+        }
+        const derivative = /_p(\d+)_master1200\.jpg$/.exec(url.pathname);
+        if (url.origin === 'https://i.pximg.net' && derivative) {
+          record.kind = 'preview'; record.page = Number(derivative[1]); record.configuredStatus = 200;
+          return route.fulfill({ contentType: 'image/png', body: Buffer.from(png()) });
         }
         const image = /_p(\d+)\./.exec(url.pathname);
         if (url.origin === 'https://i.pximg.net' && image) {

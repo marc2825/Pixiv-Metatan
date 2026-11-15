@@ -43,6 +43,12 @@ export class InspectorDriver {
   async disabled(selector: string): Promise<boolean> {
     return this.call(await this.node(selector), 'function(){return this.disabled}');
   }
+  async attribute(selector: string, name: string): Promise<string | null> {
+    return this.call(await this.node(selector), 'function(name){return this.getAttribute(name)}', [name]);
+  }
+  async hidden(selector: string): Promise<boolean> {
+    return this.call(await this.node(selector), 'function(){return this.hidden}');
+  }
   async click(selector: string): Promise<void> {
     const nodeId = await this.node(selector);
     await this.cdp.send('DOM.scrollIntoViewIfNeeded', { nodeId });

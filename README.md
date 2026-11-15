@@ -1,69 +1,64 @@
 # pixiv AI Metadata Inspector
 
-pixivの作品ページで、ユーザーが選んだ1枚の原寸画像に含まれるAI生成メタデータを表示するChrome / Edge MV3拡張です。画像の見た目からAI生成を判定するものではありません。
+pixivの作品サムネイルにホバーして画像をプレビューし、必要なページのAI生成メタデータを確認するChrome / Edge MV3拡張です。画像やプロンプトは端末内で解析します。
 
-**状態: Gate 1は実MV3拡張と合成応答で検証済み。実pixivはトップページHTTP 403で、作品・原寸の受入は未完了です。リリース判定はNO-GO。** Gate 2のStealth・署名検証等も残っています。[検証記録](docs/TEST_STATUS.md)と[実機確認手順](docs/MANUAL_TESTS.md)を参照してください。
+**開発版・実pixiv受入は未完了です。** 合成応答でUIと本番MV3経路を検証済みですが、2026-11-15の実pixiv接続はトップページでHTTP 403でした。作品API・原寸取得・実際の一覧DOM・実Edgeは未確認です。[検証状態](docs/TEST_STATUS.md)
 
-## 開発・ビルド
+## インストール
 
-Node.js 22以降（今回の検証: 22.14.0）、npmを使用します。
+Node.js 22以降とnpmを用意し、このディレクトリで実行します。
 
 ```bash
 npm ci
+npm run build
+# Edge用
+npm run build:edge
+```
+
+Chromeの`chrome://extensions`、またはEdgeの`edge://extensions`を開き、「デベロッパーモード」を有効にします。「パッケージ化されていない拡張機能を読み込む」から、Chromeでは`.output/chrome-mv3/`、Edgeでは`.output/edge-mv3/`を選びます。すでに開いているpixivのタブは再読み込みしてください。
+
+## 使い方
+
+1. pixivの検索結果、ランキング、ユーザーの投稿・ブックマーク、フォロー新着などで、作品画像にマウスを合わせます。約250ms後にプレビューが開きます。
+2. 複数枚作品は、画像の上でホイールを下／上に回すと次／前のページへ進みます。前後ボタン、画像にフォーカスした状態の左右キーも使えます。ページ番号は`2 / 8`のように表示します。
+3. **Metadata**を押すと、表示中のページの原寸画像1枚だけを取得・解析します。ページ切替だけでは解析しません。結果はタブ内で最大2分、容量・件数の上限付きで再利用します。
+4. 401 / 403 / 429などで原寸を取得できなくても、表示可能なプレビューは継続します。「ローカルファイルを検査」から正規に保存できる元画像を選べます。選択ファイルと表示作品の一致は拡張では確認しません。
+5. Prompt、Negative、結果、JSONはボタンでコピーできます。ComfyUIグラフ・RAW・対象URLは折り畳み表示です。
+
+サムネイルからプレビューへマウスを移動して操作できます。両方から離れると約200ms後に閉じます。Escapeでも閉じられ、元の作品リンクへのクリックは通常どおり動きます。作品リンクへのキーボードフォーカスでも開けます。下矢印でプレビュー内へ移動し、TabでMetadataなどの操作に進めます。
+
+作品詳細ページでは右下の`AI Metadata`から従来のページ選択・ローカル読込も使えます。関連作品は同じホバー操作に対応します。一覧ページには固定ボタンを追加しません。
+
+## 対応範囲と制限
+
+- PNG tEXt / zTXt / iTXt、CRC・構造検証、圧縮テキストの上限付き展開。NovelAI通常PNG（1段のComment envelopeを含む）、ComfyUIグラフ、AUTOMATIC1111 / Forge形式を表示します。
+- Prompt / Negative / Seed / Steps / Sampler / CFG / Model / VAE / LoRA関連値など、既存解析器が抽出できる情報だけを表示します。ComfyUIから単一のPromptや生成モデルを推測しません。
+- ファイル48 MiB、通常テキスト2 MiB、寸法40百万画素、JSON深さ・ノード数の上限があります。原寸取得・解析は複数タブを含め1件、通信は15秒でタイムアウトします。
+- **Stealth PNG、V4/V5キャラクター別Prompt、JPEG / WebP EXIF、暗号学的署名検証は未実装**です。PNGの画素は展開しません。署名文字列が存在しても検証済みにはしません。
+- 生成情報は編集・削除できる自己申告です。メタデータの不在・未対応・取得不能は、人間が描いた証拠ではありません。
+- ページ情報は未文書化の`/ajax/illust/{id}/pages`に依存します。作品リンク内の安全なpximg画像と作品IDを識別できないカードは対象外です。プレビューURLがないページでは原寸に代替せず、作品ページへのリンクを案内します。
+- 通常の画像表示と、解析用に画像バイト列を読み取る処理は異なります。ホスト権限はサーバーの取得許可を保証しません。原寸403の解消を保証する変更ではありません。
+
+## 開発・検証
+
+```bash
 npm run typecheck
 npm test
 npm run build
 npm run build:edge
-```
-
-`npm ci` / `npm test`はWXTの型定義を準備します。依存関係は`package-lock.json`で固定しています。出力は`.output/chrome-mv3/`と`.output/edge-mv3/`です。
-
-`test:browser`はUI・解析・取得処理をテスト用アダプタで接続します。`test:extension`は本番ビルドを使い捨てプロファイルへ読み込み、本物のcontent script・runtime messaging・service workerを検査します。両者とも応答は合成です。`verify:live`は実サイト用で、画像やPromptを保存しません。
-
-```bash
 npx playwright install chromium
 npm run test:browser
-# 既存のChrome for Testingを使う場合:
-PAMI_CHROME_PATH=/path/to/chrome npm run test:browser
-# 本番ビルドを一時プロファイルで読み込む実MV3試験（応答は合成）:
-PAMI_CHROME_PATH=/path/to/chrome npm run test:extension
-# 実pixivを選択ページ1枚で確認（通常接続、無再試行、証跡は状態のみ）:
-PAMI_CHROME_PATH=/path/to/chrome npm run verify:live -- --url https://www.pixiv.net/artworks/ARTWORK_ID --page 0
+npm run test:extension
 ```
 
-## 利用手順（実機確認待ち）
+`test:browser`はテスト用アダプタ、`test:extension`は本番ビルドを使い捨てプロファイルに読み込みます。どちらもHTTP応答は自作の合成データです。必要なら`PAMI_CHROME_PATH=/path/to/chrome`を指定します。LinuxではPlaywrightのブラウザ依存ライブラリも必要です。
 
-1. ご自身で`chrome://extensions`または`edge://extensions`を開き、開発者モードで該当の出力ディレクトリを読み込みます。
-2. 正規に閲覧できるpixiv作品ページで、右下の`AI Metadata`を押します。この操作で作品の画像一覧だけを取得します。
-3. 対象のページ番号を選んで「元画像を検査」を押すと、その1枚だけを取得します。並列取得・先読み・自動再試行はありません。
-4. 取得拒否や通信失敗時は、pixivで正規に保存できる元画像を「ローカルファイルを検査」で選択します。JPEG/WebPは形式を識別し、解析未対応と表示します。
-5. 結果、正規化JSON、対象URLはそれぞれ明示操作でコピーできます。RAWやComfyUIのグラフは折り畳み表示です。
-
-ページ変更・取り消し・閉じる操作は実行中処理を中止します。SPA遷移では古い候補と結果を破棄し、「画像一覧を取得」で新しい作品の一覧を読み込みます。Escapeで閉じ、ボタンへフォーカスを戻します。
-
-## 実装済み
-
-- PNG tEXt / zTXt / iTXt（非圧縮・圧縮）、CRC、チャンク境界・構造の確認。Latin-1とUTF-8を区別。
-- NovelAI通常メタデータ（公式reader互換の1段のComment envelopeを含む）、ComfyUI APIグラフ・workflow、AUTOMATIC1111/Forge互換parametersの表示。混在時は複数の根拠を保持。
-- 共通Prompt / Negative / Seed / Steps / Sampler / CFG / Model等、存在する値のみ正規化。ComfyUIから単一のプロンプトやモデルを推測しません。
-- 重複チャンクはRAWに全件保持し、曖昧なキーは判定から除外。署名の自己申告は常に未検証。
-- 48 MiBの受信・ローカルファイル上限、2 MiBの圧縮前および展開後テキスト予算、40百万画素の寸法上限、JSON深さ・ノード数制限。
-- 作品・ページ・送信元の検証、15秒タイムアウト、サービスワーカー全体で1件の検査、キャンセル、失敗理由とローカル読込案内。
-- 閉じたShadow DOM、テキストだけの描画、キーボード操作、ダークモード、狭幅レイアウト。
-
-## 未実装・制限
-
-- NovelAI Stealth PNG、V4/V5のキャラクター別Prompt、暗号学的署名検証、JPEG/WebP EXIFは未実装です。キャラクター情報が通常PNGテキストに含まれる場合、RAWでは保持されます。
-- `signed_hash`は真偽を示しません。本実装が`verified` / `invalid`を生成する経路はありません。`not-present`は**解析した通常テキスト**に署名が見つからない状態です。
-- PNGの画素は展開しません。CRC・構造検証の成功は、画素の正常性や生成元の証明ではありません。APNGのアニメーションも解析しません。
-- `/ajax/illust/{id}/pages`は非公式・未文書化のエンドポイントです。原寸URLの形が変われば手動読込へ切り替えます。
-- ホスト権限があってもpximgが403を返す可能性があります。実際の200/403、ログイン状態、年齢制限付きの正規閲覧、Chrome/Edge実拡張動作は未検証です。
-- メタデータは削除・編集できます。不在・未対応・取得不能は、人間が描いたことの証拠にはなりません。
+実サイト確認は[手動検証手順](docs/MANUAL_TESTS.md)を参照してください。`npm run verify:live -- --url https://www.pixiv.net/`は新規プロファイルで通常接続だけを確認し、拒否時に停止します。画像・Prompt・RAW・認証情報は証跡に保存しません。
 
 ## プライバシー
 
-画像・プロンプトは端末内だけで処理し、永続保存・外部アップロード・テレメトリーを行いません。接続先は操作対象のpixivとpximgだけです。Cookieやトークンを読み取らず、pixivの同一オリジンAPIではブラウザの通常セッションを利用し、pximg取得では認証情報を付けません。
+接続先はpixivとpximgだけです。APIはブラウザの通常の同一オリジンセッションを利用し、原寸のWorker取得は認証情報を付けません。Cookie・トークン・履歴を読み出しません。画像・結果の永続保存、外部アップロード、テレメトリー、一覧の巡回、原寸の先読み、制限回避はありません。画像表示にはブラウザの通常HTTPキャッシュが利用される場合があります。
 
-[プライバシー説明](docs/PRIVACY.md) / [セキュリティ方針](SECURITY.md) / [実装設計](docs/ARCHITECTURE.md) / [実装順序](docs/IMPLEMENTATION_PLAN.md) / [変更報告](docs/WORK_REPORT.md)
+[プライバシー](docs/PRIVACY.md) / [セキュリティ](SECURITY.md) / [設計](docs/ARCHITECTURE.md) / [作業報告](docs/WORK_REPORT.md)
 
-pixiv、NovelAIとの提携はありません。第三者の作品画像やR18画像をテストに含めていません。
+pixiv、NovelAIとの提携はありません。テストには第三者の作品画像やR18画像を含めていません。

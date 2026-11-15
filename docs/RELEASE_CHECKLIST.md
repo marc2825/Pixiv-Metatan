@@ -1,11 +1,11 @@
 # Public release checklist
 
-2026-10-23: **NO-GO**. Production MV3 tests pass against synthetic responses; real pixiv document access returned 403, so live artwork acceptance remains open.
+2026-11-15: **NO-GO**. Production MV3 tests pass against synthetic responses; real pixiv document access returned 403, so live artwork acceptance remains open.
 
 - [x] Locked dependencies; Chrome and Edge MV3 builds.
 - [x] Typecheck, unit/integration tests and builds PASS (see TEST_STATUS).
 - [x] Synthetic Chrome UI tests; no real pixiv requests or installed extension profile.
-- [x] Production MV3 installed into fresh disposable Chrome for Testing profiles; 9 tests pass with intercepted synthetic responses. No existing user profile used.
+- [x] Production MV3 installed into fresh disposable Chrome for Testing profiles; 17 tests pass with intercepted synthetic responses. No existing user profile used.
 - [x] Ordinary PNG extraction cross-checked with pinned NovelAI local reader and ComfyUI SaveImage synthetic fixtures. Nested Comment handling fixed.
 - [ ] Actual Chrome/Edge extension verification on owner-controlled artwork, including minimum supported browser version.
 - [x] PNG tEXt/zTXt/iTXt, malformed data, bounded inflate, CRC and signature-claim handling tests.

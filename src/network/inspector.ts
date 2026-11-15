@@ -3,9 +3,12 @@ import { imageFormat, inspectImage } from '../metadata/inspect';
 import { isRecord } from '../metadata/normalize';
 import { emptyResult, type InspectionResult } from '../metadata/types';
 import { artworkIdFromUrl, isPixivPage, validatePixivImageUrl } from '../pixiv/artworks';
+import { accessExplanation, localFallback, retryAfterMs } from './failures';
 
 export interface InspectRequest {
   type: 'INSPECT_PIXIV_IMAGE'; requestId: string; artworkId: string; page: number; url: string;
+  /** Exact top-level URL at the explicit Inspect click. Legacy requests remain artwork-only. */
+  contextUrl?: string;
 }
 export interface CancelRequest { type: 'CANCEL_INSPECTION'; requestId: string }
 export interface Sender { id?: string; url?: string; frameId?: number; tab?: { id?: number } }
@@ -16,20 +19,21 @@ interface Dependencies {
   timeoutMs?: number;
 }
 
-const fallback = '取得できない場合は、pixivで正規に保存できる元画像を「ローカルファイルを検査」で選択してください。アクセス制限の回避や自動再試行は行いません。';
+const fallback = `${localFallback}アクセス制限の回避や自動再試行は行いません。`;
 function failure(error: unknown, timedOut: boolean, cancelled: boolean): InspectionResult {
   if (timedOut) return emptyResult('access-denied', ['画像取得がタイムアウトしました（15秒）。', fallback]);
   if (cancelled) return emptyResult('cancelled', ['検査を取り消しました。']);
   const code = error instanceof InspectionError ? error.code : 'network-error';
-  return emptyResult(code === 'too-large' ? 'too-large' : 'access-denied', [`画像を取得できませんでした: ${code}`, fallback]);
+  return emptyResult(code === 'too-large' ? 'too-large' : 'access-denied', [accessExplanation(code, 'original'), fallback]);
 }
 function validRequestId(value: unknown): value is string { return typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value); }
 
 /** Single global slot, held until fetch, body reader and parser have settled. */
 export function createInspector(deps: Dependencies) {
-  let active: { tabId: number; requestId: string; artworkId: string; controller: AbortController } | undefined;
+  let active: { tabId: number; requestId: string; artworkId: string; contextUrl?: string; controller: AbortController } | undefined;
+  let blockedUntil = 0;
   const trusted = (sender: Sender): sender is Sender & { tab: { id: number } } =>
-    sender.id === deps.extensionId && sender.frameId === 0 && Number.isInteger(sender.tab?.id) && isPixivPage(sender.url ?? '');
+    sender.id === deps.extensionId && sender.frameId === 0 && Number.isInteger(sender.tab?.id) && sender.tab!.id! >= 0 && isPixivPage(sender.url ?? '');
 
   function handle(message: unknown, sender: Sender): Promise<InspectionResult> | undefined {
     if (!isRecord(message) || (message.type !== 'INSPECT_PIXIV_IMAGE' && message.type !== 'CANCEL_INSPECTION')) return;
@@ -40,12 +44,16 @@ export function createInspector(deps: Dependencies) {
       return Promise.resolve(emptyResult('cancelled', ['取り消し要求を受け付けました。']));
     }
     if (typeof message.artworkId !== 'string' || typeof message.url !== 'string' || typeof message.page !== 'number' || !Number.isInteger(message.page) || message.page < 0 || message.page >= MAX_PAGES) return Promise.resolve(emptyResult('access-denied', ['不正な画像指定です。', fallback]));
+    if (message.contextUrl !== undefined && (typeof message.contextUrl !== 'string' || message.contextUrl.length > 4096 || !isPixivPage(message.contextUrl))) return Promise.resolve(emptyResult('access-denied', ['不正な操作コンテキストです。', fallback]));
+    const contextUrl = message.contextUrl as string | undefined;
     const { artworkId, page, requestId } = message;
     let url: string;
     try { url = validatePixivImageUrl(message.url, artworkId, page); }
     catch (error) { return Promise.resolve(failure(error, false, false)); }
     if (active) return Promise.resolve(emptyResult('busy', ['別の画像を検査中です。完了または取り消し後にもう一度操作してください。']));
-    const operation = { tabId, requestId, artworkId, controller: new AbortController() };
+    if (Date.now() < blockedUntil) return Promise.resolve(failure(new InspectionError('http-429'), false, false));
+    const operation = { tabId, requestId, artworkId, contextUrl, controller: new AbortController() };
+    const matchesContext = (currentUrl?: string) => isPixivPage(currentUrl ?? '') && (contextUrl !== undefined ? currentUrl === contextUrl : artworkIdFromUrl(currentUrl ?? '') === artworkId);
     // Acquire before the first await, including current-tab validation.
     active = operation;
     return run();
@@ -57,10 +65,14 @@ export function createInspector(deps: Dependencies) {
       try {
         // sender.url can predate an SPA transition. Query the current top-level tab.
         const currentUrl = await deps.tabUrl(tabId);
-        if (artworkIdFromUrl(currentUrl ?? '') !== artworkId) throw new InspectionError('current-artwork-mismatch');
+        if (!matchesContext(currentUrl)) throw new InspectionError('current-context-mismatch');
         signal.throwIfAborted();
         const response = await (deps.fetcher ?? fetch)(url, { signal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer' });
-        if (!response.ok) { void response.body?.cancel().catch(() => {}); throw new InspectionError(`http-${response.status}`); }
+        if (!response.ok) {
+          void response.body?.cancel().catch(() => {});
+          if (response.status === 429) blockedUntil = Date.now() + retryAfterMs(response.headers.get('retry-after'));
+          throw new InspectionError(`http-${response.status}`);
+        }
         if (response.redirected) { void response.body?.cancel().catch(() => {}); throw new InspectionError('redirect-denied'); }
         const mime = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
         const expected = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/webp': 'webp' }[mime ?? ''];
@@ -69,7 +81,7 @@ export function createInspector(deps: Dependencies) {
         if (imageFormat(bytes) !== expected) throw new InspectionError('content-type-mismatch');
         const result = await inspectImage(bytes, signal);
         signal.throwIfAborted();
-        if (artworkIdFromUrl((await deps.tabUrl(tabId)) ?? '') !== artworkId) throw new InspectionError('current-artwork-mismatch');
+        if (!matchesContext(await deps.tabUrl(tabId))) throw new InspectionError('current-context-mismatch');
         signal.throwIfAborted();
         return { ...result, source: { kind: 'pixiv', artworkId, page, url } };
       } catch (error) {
@@ -83,7 +95,7 @@ export function createInspector(deps: Dependencies) {
   return {
     handle,
     onNavigation(tabId: number, url?: string) {
-      if (active?.tabId === tabId && (!url || artworkIdFromUrl(url) !== active.artworkId)) active.controller.abort();
+      if (active?.tabId === tabId && (!url || (active.contextUrl !== undefined ? url !== active.contextUrl : artworkIdFromUrl(url) !== active.artworkId))) active.controller.abort();
     },
   };
 }

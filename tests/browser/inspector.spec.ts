@@ -37,11 +37,11 @@ test('synthetic page: no prefetch, page selection, safe text and unverified sign
   expect(images(requests)).toHaveLength(0);
   await page.getByLabel('検査する画像').selectOption('1');
   await page.getByRole('button', { name: '元画像を検査', exact: true }).dblclick();
-  await expect(page.getByLabel('検査結果')).toContainText('メタデータから推定: novelai');
-  await expect(page.getByLabel('検査結果')).toContainText('NovelAI電子署名: 未検証');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('メタデータから推定: novelai');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('NovelAI電子署名: 未検証');
   expect(images(requests)).toEqual([originalUrl('123', 1)]);
-  await expect(page.getByLabel('検査結果').locator('img,script')).toHaveCount(0);
-  await expect(page.getByLabel('検査結果')).toContainText('<img src=x onerror=alert(1)>');
+  await expect(page.getByLabel('検査結果', { exact: true }).locator('img,script')).toHaveCount(0);
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('<img src=x onerror=alert(1)>');
   await page.getByText('RAWテキストチャンク（重複を含む）', { exact: true }).click();
   await expect(page.locator('details[open]')).toContainText('signed_hash');
 });
@@ -50,12 +50,12 @@ test('denied original falls back to an explicitly chosen local compressed PNG', 
   const requests = await start(page, { imageStatus: 403 });
   await page.getByRole('button', { name: 'AI Metadata', exact: true }).click();
   await page.getByRole('button', { name: '元画像を検査', exact: true }).click();
-  await expect(page.getByLabel('検査結果')).toContainText('http-403');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('http-403');
   const picker = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'ローカルファイルを検査', exact: true }).click();
   await (await picker).setFiles({ name: 'synthetic.png', mimeType: 'image/png', buffer: Buffer.from(png(text('Software', 'NovelAI', 'zTXt'), text('Description', '青い猫\n二行目', 'iTXt', true))) });
-  await expect(page.getByLabel('検査結果')).toContainText('青い猫\n二行目');
-  await expect(page.getByLabel('検査結果')).toContainText('ローカル: synthetic.png');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('青い猫\n二行目');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('ローカル: synthetic.png');
   expect(images(requests)).toHaveLength(1);
 });
 
@@ -67,7 +67,7 @@ test('artwork API denial allows local read; JPEG is reported as unsupported', as
   const picker = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'ローカルファイルを検査', exact: true }).click();
   await (await picker).setFiles({ name: 'synthetic.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([255, 216, 255, 224]) });
-  await expect(page.getByLabel('検査結果')).toContainText('未対応形式 / jpeg');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('未対応形式 / jpeg');
   expect(images(requests)).toHaveLength(0);
 });
 
@@ -78,8 +78,8 @@ test('native Chrome inflation stops a compressed text bomb and releases the UI',
   const picker = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'ローカルファイルを検査', exact: true }).click();
   await (await picker).setFiles({ name: 'synthetic-bomb.png', mimeType: 'image/png', buffer: Buffer.from(png(text('Description', 'x'.repeat(2 * 1024 * 1024 + 1), 'zTXt'))) });
-  await expect(page.getByLabel('検査結果')).toContainText('安全上限超過');
-  await expect(page.getByLabel('検査結果')).toContainText('text-too-large');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('安全上限超過');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('text-too-large');
   await expect(page.getByRole('button', { name: '元画像を検査', exact: true })).toBeEnabled();
   expect(images(requests)).toHaveLength(0);
 });
@@ -92,7 +92,7 @@ test('SPA transition aborts stale inspection and requires another explicit listi
   await page.evaluate(() => history.pushState({}, '', '/artworks/456'));
   await expect(page.getByRole('button', { name: '元画像を検査', exact: true })).toBeDisabled();
   await expect(page.getByRole('status').first()).toContainText('作品が変わりました');
-  await expect(page.getByLabel('検査結果')).toBeEmpty();
+  await expect(page.getByLabel('検査結果', { exact: true })).toBeEmpty();
   expect(requests.filter(url => url.includes('/ajax/'))).toHaveLength(1);
   await page.getByRole('button', { name: '画像一覧を取得', exact: true }).click();
   await expect(page.getByRole('button', { name: '元画像を検査', exact: true })).toBeEnabled();
@@ -106,7 +106,7 @@ test('keyboard close and narrow dark layout with synthetic data', async ({ page 
   await expect(page.getByRole('button', { name: 'ローカルファイルを検査', exact: true })).toBeFocused();
   const box = await page.locator('#pami-panel').boundingBox(); expect(box?.x).toBeGreaterThanOrEqual(0); expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(360);
   await page.getByRole('button', { name: '元画像を検査', exact: true }).click();
-  await expect(page.getByLabel('検査結果')).toContainText('未検証');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('未検証');
   await page.screenshot({ path: '.test-browser/synthetic-dark-mobile.png' });
   await page.keyboard.press('Escape'); await expect(page.locator('#pami-panel')).toBeHidden();
   await expect(page.getByRole('button', { name: 'AI Metadata', exact: true })).toBeFocused();

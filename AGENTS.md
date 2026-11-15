@@ -1,7 +1,7 @@
 # AGENTS.md — pixiv AI Metadata Inspector
 
 ## Mission
-Build a small, privacy-first Chrome/Edge MV3 extension that lets a user inspect the available AI-generation metadata from an image on an *artwork page they are viewing* on pixiv. The main differentiator is pixiv integration and evidence transparency, not bulk collection.
+Build a small, privacy-first Chrome/Edge MV3 extension with user-hovered pixiv thumbnail previews and explicit metadata inspection of the displayed page. The November 2026 user request extends the original artwork-page-only scope to individual thumbnails on pixiv listings. The differentiator is pixiv integration and evidence transparency, not bulk collection.
 
 ## Ground-truth files (read before editing)
 1. `docs/REQUIREMENTS.md`: source of truth for scope, acceptance criteria, and non-goals.
@@ -11,7 +11,7 @@ Build a small, privacy-first Chrome/Edge MV3 extension that lets a user inspect 
 
 ## Hard invariants
 - No automated crawling/search-result sweeping, hidden downloads, proxying, or bypassing pixiv login, age restrictions, access controls, hotlink restrictions or rate limits.
-- Scan **only after a user clicks Inspect** on the artwork currently open. One active image fetch at a time; no speculative prefetch.
+- Scan **only after a user clicks Metadata / Inspect** on the displayed artwork or preview page. Hover may request that artwork's page list and display derivatives only. One active original-image operation globally; no speculative prefetch or list sweeping.
 - Accept source URLs only on `https://i.pximg.net/img-original/`; obtain original URLs from pixiv's currently accessible artwork data. Never reconstruct filenames blindly if authoritative data is available.
 - Use only the minimum necessary MV3 permissions. Do not read cookies, credentials, tokens, browser history, or unrelated sites.
 - Process image bytes locally. No telemetry, no third-party processing. Do not persist metadata without explicit opt-in.
@@ -40,4 +40,4 @@ Build a small, privacy-first Chrome/Edge MV3 extension that lets a user inspect 
 6. Never push, publish, or install an extension to another profile without explicit request.
 
 ## Current prototype limitations
-Gate 1 supports PNG tEXt/zTXt/iTXt, CRC and bounded inflation, streamed image limits, strict artwork/page/sender checks, cancellation and ordinary NovelAI Comment envelopes. The production MV3 build has been tested in temporary Chrome profiles against synthetic responses, including isolated content injection and runtime/worker messaging. Real pixiv connectivity returned a document-level 403 on 2026-10-23; artwork API/original fetching and real Edge remain unverified. It does **not** inspect NovelAI stealth alpha-channel metadata, separate V4/V5 character captions, decode JPEG/WebP/EXIF, or verify NovelAI signatures. PNG pixels are not decoded. See `docs/TEST_STATUS.md` and sanitized evidence; synthetic successes are not live pixiv successes. Gate 2 remains deferred until Gate 1's live acceptance is GO.
+The prototype supports hover previews, multipage navigation, bounded tab-memory caches and explicit inspection from pixiv listings, alongside the original artwork/local-file UI. PNG tEXt/zTXt/iTXt, CRC, bounded inflation, streamed image limits, artwork/page/sender/context checks and cancellation remain in place. Production MV3 tests use temporary Chrome profiles and synthetic responses. Real pixiv connectivity returned a document-level 403 on 2026-11-15; artwork API/original fetching, live thumbnail markup and real Edge remain unverified. It does **not** inspect NovelAI stealth alpha-channel metadata, separate V4/V5 character captions, decode JPEG/WebP/EXIF, or verify NovelAI signatures. PNG pixels are not decoded. See `docs/TEST_STATUS.md` and sanitized evidence; synthetic successes are not live pixiv successes. Gate 2 remains deferred until live acceptance is GO.

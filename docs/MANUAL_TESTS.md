@@ -1,8 +1,8 @@
-# Gate 0 / Gate 1 実機確認手順
+# 実機確認手順
 
-更新: 2026-10-23。実ChromeのMV3経路は合成応答でPASS。実pixivはトップページHTTP 403で停止し、作品・API・原寸の受入はNOT RUNです。[証跡](evidence/README.md)を参照。
+更新: 2026-11-15。合成ページの成功と実pixivでの成功を分ける。[現状](TEST_STATUS.md)。この環境の通常接続はトップページ403で、実作品受入はNOT RUN。
 
-## ビルドと実MV3の回帰確認
+## 自動回帰
 
 ```bash
 npm ci
@@ -10,79 +10,73 @@ npm run typecheck
 npm test
 npm run build
 npm run build:edge
-PAMI_CHROME_PATH=/path/to/chrome-for-testing/chrome npm run test:extension
+npm run test:browser
+npm run test:extension
 ```
 
-`test:extension`は新しい一時プロファイルに本番ビルドを読み込み、終了時に削除します。既存プロファイルは使いません。すべての通信は合成応答へ差し替え、閉じたShadow DOMをDevToolsで操作します。ソースのShadow DOMやruntime APIはテスト用に変更しません。
+必要なら`PAMI_CHROME_PATH=/path/to/chrome`を指定する。LinuxはPlaywrightの共有ライブラリも必要。`test:extension`は一時プロファイルに本番ビルドを読み込み、全通信を合成応答へ差し替える。既存プロファイル・認証情報は使わず、終了時にプロファイルを削除する。closed Shadow DOMへのアクセスはDevToolsだけで行い、製品にテスト用の橋は追加しない。
 
-## 実pixivの再現用コマンド
+## GUIでの実pixiv確認
 
-正規に閲覧できる、自分が権利を持つテスト作品を用意してください。画像を投稿する場合は自分でpixiv上の通常手順を使い、検証のためにアクセス制限を緩めたり認証を回避したりしません。
+1. ユーザー自身が開発用Chrome / Edgeプロファイルへ[README](../README.md)の手順で拡張を読み込む。必要なら通常のログイン画面でログインする。Cookieやトークンはコピーしない。
+2. 正規に閲覧できる自作・権利処理済みの単一/複数枚作品を準備する。作品を投稿したり公開範囲を変更する操作はユーザーが判断する。
+3. 検索・ランキング・投稿一覧・ブックマーク・フォロー新着・作品ページの関連作品で、それぞれサムネイルにホバーする。250ms未満では何も取得せず、長いホバーでは対象作品のAPIだけが呼ばれるか確認する。
+4. プレビューにマウスを移動し、画像の縦横比、タイトル/作者（取得できる場合）、ページ数、作品リンクを確認する。サムネイルをクリックしたときの通常遷移も維持されること。
+5. 複数枚でホイールの上下・連続trackpad・ボタン・左右キーを試す。ページと画像が一致し、先頭/末尾で停止し、原寸画像を取得しないこと。単一画像では切替ボタンが隠れ、通常スクロールを妨げないこと。
+6. Metadataを押し、そのページの原寸1件だけがWorkerから取得されることを確認する。切替時に古い結果が消え、戻るとキャッシュ済みの対応結果だけが表示されること。取消も試す。
+7. Prompt/Negativeの改行、設定、折り畳みのComfyUI/RAWとコピーを、自作元ファイル・独立したローカルreaderの結果と比べる。署名文字列だけで検証成功と表示しないこと。
+8. 画面四隅・スクロール・resize・狭幅・高DPI・ライト/ダーク・Tab・下矢印でのプレビュー内移動・Escapeを試す。両方から離れると200ms後に閉じ、Escape後に元リンクへフォーカスが戻ること。
+9. 高速ホバー・SPAのURL変更・カード再利用・遅延追加・戻る/進む・BFCache・2タブ・長時間表示を試す。古い画像/結果を混入せず、全タブの原寸同時取得は1件、メモリキャッシュは失効/破棄されること。
+10. 作品ページの従来AI Metadataパネル、ローカルファイル、未対応JPEG/WebPの表示も確認する。
+
+実サイトへ負荷をかけて429やtimeoutを誘発しない。これらは合成試験で行う。第三者の画像・Prompt・認証情報をリポジトリや証跡へ保存しない。
+
+## 403を切り分ける
+
+DevToolsで次の3層のstatus/MIME/件数だけを記録する。
+
+| 層 | 取得元 | 失敗時の扱い |
+|---|---|---|
+| document | 通常のpixivページ | 403なら停止。API/原寸を成功/失敗と推測しない |
+| pages API | `/ajax/illust/{id}/pages`、同一オリジン通常セッション | 401/403/429、JSON/候補順を確認。見えているサムネイルとローカル読込は残す |
+| original | API由来の正確なURL、拡張Worker | 401/403/429/timeoutを別記。表示可能な縮小画像は継続する |
+
+原寸URLと作品ID/ページの一致をローカルで確認し、ユーザーの通常ブラウザ操作で同じ画像を開けるかも別に記録する。ページの画像表示、通常ブラウザで原寸を開く操作、拡張がバイト列を読む処理は同じ成功条件ではない。
+
+Workerは`credentials: omit`、`referrerPolicy: no-referrer`、リダイレクト拒否。ページの画像表示はブラウザの通常ポリシーに従う。差があっても、それだけでCookie/Referer/CORSが403の原因と断定しない。ログイン状態、公開範囲、通常閲覧権限、ブラウザ版を分けて記録する。ヘッダー偽装・認証移植・外部proxy・自動再試行は行わない。
+
+原寸を正規保存できる場合のみ明示ファイル選択を試す。ローカル成功をpximg成功と数えない。ローカル結果は表示作品と同一である保証がないことを確認する。
+
+## 通常接続の再現コマンド
 
 ```bash
-# pageは0始まり。選択したページ1枚だけInspectする。
-PAMI_CHROME_PATH=/path/to/chrome-for-testing/chrome npm run verify:live -- \
-  --url https://www.pixiv.net/artworks/ARTWORK_ID --page 0 \
-  --output .verification/single.json
+# 接続だけ。document拒否時は停止する。
+npm run verify:live -- --url https://www.pixiv.net/ --output .verification/connectivity.json
 
-# 正規保存したローカル元画像によるfallbackを同じ画面で確認する。
-PAMI_CHROME_PATH=/path/to/chrome-for-testing/chrome npm run verify:live -- \
-  --url https://www.pixiv.net/artworks/ARTWORK_ID --page 0 \
-  --local-file /path/to/your-original.png --output .verification/fallback.json
-
-# 接続だけを確認する場合。作品/API/原寸は操作しない。
-PAMI_CHROME_PATH=/path/to/chrome-for-testing/chrome npm run verify:live -- \
-  --url https://www.pixiv.net/ --output .verification/connectivity.json
+# ユーザーが用意した作品の0始まりpageを1枚だけ検査する。
+npm run verify:live -- --url https://www.pixiv.net/artworks/ARTWORK_ID --page 0
 ```
 
-Node 22.14以降を使用。TypeScriptをネイティブstripする実験機能の警告は開発用コマンドに限られます。拡張のコードをこの方法で配布するわけではありません。
+新規・ログアウトプロファイルを使う。`--headed`、`--local-file /path/to/your-original.png`、`--browser msedge`も指定できる（Edgeが実際に利用できる環境のみ）。コマンドは従来の作品ページパネルを操作する。ライブ一覧hoverはGUI手順で確認する。
 
-このコマンドは毎回新しいプロファイルで**ログアウト状態**を調べます。Cookie/トークン/既存セッションを読み出しません。`--headed`で表示可能。実Edgeが利用できる場合は`--browser msedge`がありますが、Edgeのsideload用起動フラグの対応は環境依存です。読み込みに失敗した場合はFAILとなるため、下記のGUI手順を使用してください。
+保存するのは日時、ブラウザ版、git revision、生成物ハッシュ、status/MIME、原寸件数、分類状態だけ。原寸取得前のdocument拒否は非zero終了となる。画像やPrompt、URL、HAR、認証情報は保存しない。
 
-記録するのは日時、ブラウザ版、基準コミット、作業ツリー変更有無、生成物ハッシュ、HTTP状態・MIME、原寸リクエスト数、制御された結果分類です。画像・Prompt・RAW・認証情報・作品URLをJSONへ保存せず、スクリーンショットやHARも取得しません。取得失敗時は非zero終了。documentが403ならそれ以上進まず、再試行はしません。
-
-`formatAndResult: PASS`は結果分類が表示されたことを示します。実際の生成元やPromptの正しさを外部検証した意味にはならないため、以下の独立照合も行ってください。
-
-## GUIでの署名なし通常メタ・認証・Edge確認
-
-1. Chrome/Edgeの**開発用プロファイル**で拡張管理を開き、`.output/chrome-mv3/`または`.output/edge-mv3/`を読み込む。普段のプロファイルのCookie等をコピーしない。
-2. 必要ならユーザー自身が通常のログイン画面からログインする。エージェントへ認証情報を渡さない。
-3. 作品ページを開き、`AI Metadata`が1つだけ表示されることを確認。pixiv自身の画像通信と拡張の通信を区別する。
-4. パネルを開き、作品APIのHTTP状態・Content-Type・候補数だけ記録。single/multiのp0..pNが一致することを確認。
-5. 1枚を選びInspect。Service WorkerのNetworkで、その1枚だけの原寸取得、HTTP状態、MIME、表示形式を確認。401/403/429なら自動再試行やヘッダー変更をしない。
-6. 取得できなければ、pixivで正規保存できる元画像を明示選択。手動読込成功をpximg取得成功と記録しない。
-7. 結果を元のローカル生成設定・独立readerと比較。クラウドへの画像アップロードは本拡張の検証に含めない。NovelAIは公式ローカルスクリプト、ComfyUIは生成時のworkflow/SaveImage出力を使う。
-
-自作fixtureは`tests/reference/fixtures/`にあります。これらは公式reader/writerで照合した人工1×1画像であり、NovelAIの実生成・署名正例ではありません。正規の作品への投稿はユーザー自身の判断と通常操作で行ってください。
-
-## 必要な証跡と受入マトリクス
-
-| 対象 | 保存する証跡 | 実pixivの状態 |
-|---|---|---|
-| 単一画像 / 複数画像 | 候補数、選択ページ、原寸のstatus/MIME、並び順 | NOT RUN |
-| NovelAI PNG | 通常テキストの共通Prompt/Negative/Seed等と独立readerの一致。署名状態を別記 | NOT RUN |
-| ComfyUI PNG | prompt/workflow JSONの完全保持、生成時グラフとの一致 | NOT RUN |
-| JPEG / メタなしPNG | 形式と未対応/メタなしを区別。取得不能と混同しない | NOT RUN |
-| SPA / タブ切替 / 連続操作 | 古い候補・結果破棄、取得は全タブ合計1、明示操作のみ | NOT RUN |
-| 取消 / timeout / 通信失敗 | 操作、結果、復旧後の明示Inspect、取得件数 | NOT RUN |
-| 403 / ログアウト / 正規の制限作品 | statusとfallback。アクセス制限を回避しない | NOT RUN |
-| ライト/ダーク / 360px / keyboard / コピー | 画面・フォーカス・クリップボード許可/拒否の結果 | NOT RUN |
-| Chrome / Edge / 最低120 | 完全なブラウザバージョンと各結果 | NOT RUN |
-
-異常・巨大ファイル・429・意図的timeoutは`test:extension`などの合成試験で確認します。実pixivへ負荷をかけてエラーを誘発しません。自然に403/429になったときだけ実サイトの結果を記録します。
+## 記録テンプレート
 
 ```text
-日時 (JST):
-OS / browser version:
-Extension version / git revision / artifact hashes:
-Artwork type: single / multi(count) / NovelAI PNG / ComfyUI PNG / JPEG / no-metadata
-Injection: PASS / FAIL / NOT RUN
-Pages API: HTTP / MIME / candidate count
-Original fetch: HTTP / MIME / format / extension-origin request count
-Extraction match: PASS / FAIL / NOT RUN (independent reader and field names only)
-Local fallback: PASS / FAIL / NOT RUN
-SPA / cancellation / concurrency / clipboard:
-Gate 1 release: GO / NO-GO / NOT RUN (reason)
+日時 (JST) / OS / browser version:
+Extension revision / artifact hashes:
+Page type / signed-in state / legitimately accessible scope:
+Document: PASS / FAIL / NOT RUN (HTTP / MIME)
+Hover / enter-leave / focus / Escape / viewport / light-dark:
+Pages API: PASS / FAIL / NOT RUN (HTTP / MIME / candidate count)
+Preview display / page order / wheel / original request count before Metadata:
+Original: PASS / FAIL / NOT RUN (HTTP / MIME / extension-origin count)
+Normal browser original display: PASS / FAIL / NOT RUN
+Extraction match / no-metadata / unsupported / signature claim:
+Local fallback / cancellation / cache / SPA / multiple tabs / clipboard:
+Chrome / Edge / minimum version 120:
+Release: GO / NO-GO (reason):
 ```
 
-生の画像、プロンプト、URL、Cookie、認証画面をリポジトリへ保存しないでください。現時点の本リポジトリのリリース判定はNO-GOです。実サイトと実Edgeの未確認が解消してからGate 2実装に進みます。
+Stealth・キャラクターcaption・暗号学的署名・JPEG/WebP EXIFの検査は未実装として記録する。

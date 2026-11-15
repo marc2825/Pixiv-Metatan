@@ -35,11 +35,15 @@ describe('synthetic pixiv DOM integration', () => {
   });
   it('discards a stale listing after SPA navigation, without fetching another automatically', async () => {
     const pending = deferred<typeof pages>(); const deps = mount({ pages: vi.fn().mockReturnValue(pending.promise) });
-    button('AI Metadata').click(); history.pushState({}, '', '/artworks/456');
+    button('AI Metadata').click();
+    await vi.waitFor(() => expect(deps.pages).toHaveBeenCalledOnce());
+    history.pushState({}, '', '/artworks/456');
     pending.resolve(pages);
+    await vi.waitFor(() => expect(shadow.textContent).toContain('作品が変わりました'));
     await vi.waitFor(() => expect(shadow.querySelector('select')!.options).toHaveLength(0));
     expect(button('元画像を検査').disabled).toBe(true); expect(deps.pages).toHaveBeenCalledOnce();
-    button('画像一覧を取得').click(); expect(deps.pages).toHaveBeenLastCalledWith('456', expect.any(AbortSignal));
+    button('画像一覧を取得').click();
+    await vi.waitFor(() => expect(deps.pages).toHaveBeenLastCalledWith('456', expect.any(AbortSignal)));
   });
   it('does not show stale results after navigation or allow the previous image to be scanned', async () => {
     const pending = deferred<ReturnType<typeof emptyResult>>(); const deps = mount({ send: vi.fn().mockReturnValue(pending.promise) });
@@ -78,7 +82,9 @@ describe('synthetic pixiv DOM integration', () => {
   });
   it('removes UI and cancels outstanding work on teardown', async () => {
     const pending = deferred<typeof pages>(); const deps = mount({ pages: vi.fn().mockReturnValue(pending.promise) });
-    button('AI Metadata').click(); destroy(); pending.resolve(pages);
+    button('AI Metadata').click();
+    await vi.waitFor(() => expect(deps.pages).toHaveBeenCalledOnce());
+    destroy(); pending.resolve(pages);
     expect(document.getElementById('pami-extension-root')).toBeNull(); expect(vi.mocked(deps.pages).mock.calls[0]?.[1]?.aborted).toBe(true);
   });
   it('retains the mount after BFCache but discards candidates and results', async () => {
