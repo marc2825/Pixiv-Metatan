@@ -1,82 +1,65 @@
 # 実機確認手順
 
-更新: 2026-11-15。合成ページの成功と実pixivでの成功を分ける。[現状](TEST_STATUS.md)。この環境の通常接続はトップページ403で、実作品受入はNOT RUN。
+更新: 2026-11-19。合成ページの成功と実pixivでの成功を分けて記録します。現状は[TEST_STATUS.md](TEST_STATUS.md)。
 
-## 自動回帰
+自動ブラウザ（Playwright）は、pixivのdocumentでCloudflareの確認画面（HTTP 403、`cf-mitigated: challenge`）になります。確認画面を自動で突破することはしないため、実一覧の確認は**人が通常のブラウザで行います**。
 
-```bash
-npm ci
-npm run typecheck
-npm test
-npm run build
-npm run build:edge
-npm run test:browser
-npm run test:extension
-```
+## 準備
 
-必要なら`PAMI_CHROME_PATH=/path/to/chrome`を指定する。LinuxはPlaywrightの共有ライブラリも必要。`test:extension`は一時プロファイルに本番ビルドを読み込み、全通信を合成応答へ差し替える。既存プロファイル・認証情報は使わず、終了時にプロファイルを削除する。closed Shadow DOMへのアクセスはDevToolsだけで行い、製品にテスト用の橋は追加しない。
+1. [README](../README.md#インストール開発版)の手順で、開発用のChrome / Edgeプロファイルに拡張を読み込みます。必要なら通常のログイン画面からログインします。Cookieやトークンのコピーはしません。
+2. 正規に閲覧できる単一画像・複数画像の作品を用意します（自作・権利処理済みが望ましい）。作品の投稿や公開範囲の変更はユーザーが判断します。
+3. DevToolsのNetworkタブを開き、`ajax/illust`と`i.pximg.net`で絞り込みます。記録するのはstatus・MIME・件数だけです。
 
-## GUIでの実pixiv確認
+## 確認項目
 
-1. ユーザー自身が開発用Chrome / Edgeプロファイルへ[README](../README.md)の手順で拡張を読み込む。必要なら通常のログイン画面でログインする。Cookieやトークンはコピーしない。
-2. 正規に閲覧できる自作・権利処理済みの単一/複数枚作品を準備する。作品を投稿したり公開範囲を変更する操作はユーザーが判断する。
-3. 検索・ランキング・投稿一覧・ブックマーク・フォロー新着・作品ページの関連作品で、それぞれサムネイルにホバーする。250ms未満では何も取得せず、長いホバーでは対象作品のAPIだけが呼ばれるか確認する。
-4. プレビューにマウスを移動し、画像の縦横比、タイトル/作者（取得できる場合）、ページ数、作品リンクを確認する。サムネイルをクリックしたときの通常遷移も維持されること。
-5. 複数枚でホイールの上下・連続trackpad・ボタン・左右キーを試す。ページと画像が一致し、先頭/末尾で停止し、原寸画像を取得しないこと。単一画像では切替ボタンが隠れ、通常スクロールを妨げないこと。
-6. Metadataを押し、そのページの原寸1件だけがWorkerから取得されることを確認する。切替時に古い結果が消え、戻るとキャッシュ済みの対応結果だけが表示されること。取消も試す。
-7. Prompt/Negativeの改行、設定、折り畳みのComfyUI/RAWとコピーを、自作元ファイル・独立したローカルreaderの結果と比べる。署名文字列だけで検証成功と表示しないこと。
-8. 画面四隅・スクロール・resize・狭幅・高DPI・ライト/ダーク・Tab・下矢印でのプレビュー内移動・Escapeを試す。両方から離れると200ms後に閉じ、Escape後に元リンクへフォーカスが戻ること。
-9. 高速ホバー・SPAのURL変更・カード再利用・遅延追加・戻る/進む・BFCache・2タブ・長時間表示を試す。古い画像/結果を混入せず、全タブの原寸同時取得は1件、メモリキャッシュは失効/破棄されること。
-10. 作品ページの従来AI Metadataパネル、ローカルファイル、未対応JPEG/WebPの表示も確認する。
+1. **一覧での検出**: 検索・ランキング・ユーザーの投稿・ブックマーク・フォロー新着・作品ページの関連作品で、サムネイルにホバーします。250ms未満では何も取得せず、長いホバーでその作品の`/ajax/illust/{id}/pages`だけが1回呼ばれること。検出されないカードがあれば、DOM構造（クラス名・画像・名前を除く）を記録します。
+2. **プレビュー表示**: プレビューの画像が実タブで表示されること（ページの通常の`<img>`表示）。縦横比、タイトル・作者（取得できる場合）、ページ数、「作品ページを開く」を確認します。サムネイルのクリックで通常どおり遷移すること。
+3. **複数枚**: ホイール上下・連続trackpad・前後ボタン・左右キーで切り替わり、先頭/末尾で止まり、原寸を取得しないこと。単一画像では切替ボタンが隠れ、ページのスクロールを妨げないこと。GIF・うごイラのページは「検査対象外」と表示されること。
+4. **Metadata**: 押したときだけ、そのページの原寸1件がWorker（Initiatorが拡張）から要求されること。2026-11-19の実測どおりなら403となり、UIに「解析用の原寸画像（i.pximg.net）…Refererのない取得を拒否…」とローカルの案内が出ます。成功した場合はstatus/MIMEを記録してください（実測と異なる結果です）。
+5. **ローカルファイル**: pixivの作品ページで原寸を表示してブラウザで保存し、「ローカルファイルを検査」で選択します。Prompt/Negative・設定・ComfyUI・RAW・Stealth・EXIFの表示を、独立したreader（NovelAI公式`nai_meta.py`、ExifToolなど）の結果と比べます。署名データがあっても「未検証」と表示されること。
+6. **配置と操作**: 画面の四隅・スクロール・resize・狭い幅・高DPI・ライト/ダーク・Tab・作品リンクで↓キー・Escape。両方から離れると約200msで閉じ、Escape後は元リンクにフォーカスが戻ること。pixivの検索欄などにフォーカスがあるときのEscapeが、pixiv側にも届くこと。
+7. **競合と寿命**: 高速ホバー・SPA遷移・カードの再利用・戻る/進む（BFCache）・2タブ・長時間表示で、古い画像や結果が混ざらないこと。全タブの原寸同時取得は1件、メモリキャッシュは最長2分で消えること。
+8. **作品ページの従来パネル**: 右下`AI Metadata`、ページ選択、取消、ローカルファイル、URLにハッシュが付いても検査が中止されないこと。
+9. **Chrome / Edge**: Chrome stable、Edge stable、可能なら最小対応版（120）で1〜8の主要項目。
 
-実サイトへ負荷をかけて429やtimeoutを誘発しない。これらは合成試験で行う。第三者の画像・Prompt・認証情報をリポジトリや証跡へ保存しない。
+429やタイムアウトを実サイトで誘発しないでください（合成試験で確認済み）。第三者の画像・Prompt・認証情報をリポジトリや証跡に保存しないでください。
 
-## 403を切り分ける
+## 403の切り分け
 
-DevToolsで次の3層のstatus/MIME/件数だけを記録する。
+| 層 | 取得元 | 2026-11-19の実測 | 失敗時の扱い |
+|---|---|---|---|
+| document | 通常のpixivページ | 自動ブラウザ: 403（Cloudflare確認画面） / 通常のHTTP: 200 | 確認画面なら自動試験を止め、手動で確認する |
+| pages API | `/ajax/illust/{id}/pages`（同一オリジンの通常セッション） | 200（公開作品・ログアウト） | 401/403/404/429とpixivのメッセージを表示。サムネイルとローカル読込は残す |
+| original | API由来のURL、拡張Worker、Cookie・Refererなし | 403 | 層・根拠を表示し、ローカル読込を案内。回避しない |
+| 表示用画像 | ページ上の`<img>`（ブラウザ既定のReferer） | 自動では未確認 | 表示できない場合は作品ページへの案内 |
 
-| 層 | 取得元 | 失敗時の扱い |
-|---|---|---|
-| document | 通常のpixivページ | 403なら停止。API/原寸を成功/失敗と推測しない |
-| pages API | `/ajax/illust/{id}/pages`、同一オリジン通常セッション | 401/403/429、JSON/候補順を確認。見えているサムネイルとローカル読込は残す |
-| original | API由来の正確なURL、拡張Worker | 401/403/429/timeoutを別記。表示可能な縮小画像は継続する |
+拡張の画像表示、ブラウザで原寸を開く操作、拡張がバイト列を読む処理は、成功条件が異なります。差があっても、根拠なしに原因を断定しないでください。ヘッダー偽装・認証の移植・外部proxy・自動再試行は行いません。
 
-原寸URLと作品ID/ページの一致をローカルで確認し、ユーザーの通常ブラウザ操作で同じ画像を開けるかも別に記録する。ページの画像表示、通常ブラウザで原寸を開く操作、拡張がバイト列を読む処理は同じ成功条件ではない。
-
-Workerは`credentials: omit`、`referrerPolicy: no-referrer`、リダイレクト拒否。ページの画像表示はブラウザの通常ポリシーに従う。差があっても、それだけでCookie/Referer/CORSが403の原因と断定しない。ログイン状態、公開範囲、通常閲覧権限、ブラウザ版を分けて記録する。ヘッダー偽装・認証移植・外部proxy・自動再試行は行わない。
-
-原寸を正規保存できる場合のみ明示ファイル選択を試す。ローカル成功をpximg成功と数えない。ローカル結果は表示作品と同一である保証がないことを確認する。
-
-## 通常接続の再現コマンド
+## コマンド（接続確認のみ）
 
 ```bash
-# 接続だけ。document拒否時は停止する。
+# documentへの接続だけを確認します。確認画面・拒否のときは何もせずに終了します（exit 1）。
 npm run verify:live -- --url https://www.pixiv.net/ --output .verification/connectivity.json
 
-# ユーザーが用意した作品の0始まりpageを1枚だけ検査する。
+# ユーザーが用意した作品の0始まりのページを1枚だけ、従来パネルで検査します。
 npm run verify:live -- --url https://www.pixiv.net/artworks/ARTWORK_ID --page 0
 ```
 
-新規・ログアウトプロファイルを使う。`--headed`、`--local-file /path/to/your-original.png`、`--browser msedge`も指定できる（Edgeが実際に利用できる環境のみ）。コマンドは従来の作品ページパネルを操作する。ライブ一覧hoverはGUI手順で確認する。
-
-保存するのは日時、ブラウザ版、git revision、生成物ハッシュ、status/MIME、原寸件数、分類状態だけ。原寸取得前のdocument拒否は非zero終了となる。画像やPrompt、URL、HAR、認証情報は保存しない。
+新しい使い捨てプロファイルを使います。`--headed`、`--local-file ./your-original.png`、`--browser msedge`（Edgeがある環境）も指定できます。保存するのは日時・ブラウザ版・git revision・生成物ハッシュ・status/MIME・原寸の件数・分類だけで、画像・Prompt・URL・HAR・認証情報は保存しません。
 
 ## 記録テンプレート
 
 ```text
-日時 (JST) / OS / browser version:
-Extension revision / artifact hashes:
-Page type / signed-in state / legitimately accessible scope:
+日時 (JST) / OS / ブラウザと版:
+拡張のrevision / 生成物ハッシュ:
+ページ種別 / ログイン状態 / 正規に閲覧できる範囲:
 Document: PASS / FAIL / NOT RUN (HTTP / MIME)
-Hover / enter-leave / focus / Escape / viewport / light-dark:
-Pages API: PASS / FAIL / NOT RUN (HTTP / MIME / candidate count)
-Preview display / page order / wheel / original request count before Metadata:
-Original: PASS / FAIL / NOT RUN (HTTP / MIME / extension-origin count)
-Normal browser original display: PASS / FAIL / NOT RUN
-Extraction match / no-metadata / unsupported / signature claim:
-Local fallback / cancellation / cache / SPA / multiple tabs / clipboard:
-Chrome / Edge / minimum version 120:
-Release: GO / NO-GO (reason):
+一覧での検出（ページ種別ごと）/ 検出されない構造:
+プレビュー表示 / ページ順 / wheel / Metadata前の原寸要求数:
+Pages API: PASS / FAIL / NOT RUN (HTTP / MIME / ページ数)
+Original: PASS / FAIL / NOT RUN (HTTP / MIME / 拡張からの件数)
+ローカルファイル: 独立readerとの一致 / Stealth / EXIF / 署名の表示:
+取消 / キャッシュ / SPA / 2タブ / クリップボード / Escape:
+Chrome / Edge / 120:
+判定: GO / NO-GO（理由）:
 ```
-
-Stealth・キャラクターcaption・暗号学的署名・JPEG/WebP EXIFの検査は未実装として記録する。

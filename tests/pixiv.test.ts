@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { artworkIdFromUrl, getArtworkPages, parseArtworkPages, validatePixivImageUrl, validatePreviewUrl } from '../src/pixiv/artworks';
+import { artworkIdFromUrl, classifyOriginal, getArtworkPages, parseArtworkPages, pixivMessage, validatePixivImageUrl, validatePreviewUrl } from '../src/pixiv/artworks';
+import type { InspectionError } from '../src/limits';
+import { accessExplanation } from '../src/network/failures';
 import { originalUrl, pagePayload, previewUrl } from './fixtures';
 
 afterEach(() => vi.restoreAllMocks());
@@ -61,5 +63,63 @@ describe('pixiv page and authoritative originals', () => {
     await expect(getArtworkPages('123', undefined, fetcher)).rejects.toThrow('pixiv-pages-timeout');
     const cancelled = new AbortController(); cancelled.abort();
     await expect(getArtworkPages('123', cancelled.signal, fetcher)).rejects.not.toThrow('pixiv-pages-timeout');
+  });
+});
+
+describe('page listing robustness and precise pixiv errors', () => {
+  // URL shapes observed from the live pages API on 2026-11-19 (artwork ID/date replaced).
+  const live = {
+    thumb_mini: 'https://i.pximg.net/c/128x128/img-master/img/2026/10/22/00/00/00/123_p0_square1200.jpg',
+    small: 'https://i.pximg.net/c/540x540_70/img-master/img/2026/10/22/00/00/00/123_p0_master1200.jpg',
+    regular: 'https://i.pximg.net/img-master/img/2026/10/22/00/00/00/123_p0_master1200.jpg',
+    original: 'https://i.pximg.net/img-original/img/2026/10/22/00/00/00/123_p0.jpg',
+  };
+  it('accepts every URL shape observed from the live API and keeps small/regular for srcset', () => {
+    for (const url of [live.thumb_mini, live.small, live.regular]) expect(validatePreviewUrl(url, '123', 0)).toBe(url);
+    expect(parseArtworkPages({ error: false, message: '', body: [{ urls: live, width: 1, height: 1 }] }, '123'))
+      .toEqual([{ page: 0, original: live.original, preview: live.regular, previewSmall: live.small }]);
+  });
+  it('keeps numbering but marks unrecognised original shapes non-inspectable', () => {
+    const payload = pagePayload('123', 3);
+    payload.body[1]!.urls.original = originalUrl('123', 1, 'gif');
+    payload.body[2]!.urls.original = 'https://i.pximg.net/img-original/img/2026/10/22/00/00/00/123_ugoira0.jpg';
+    expect(parseArtworkPages(payload, '123')).toEqual([
+      { page: 0, original: originalUrl() },
+      { page: 1, unavailable: 'unsupported-original-format' },
+      { page: 2, unavailable: 'unrecognized-original-url' },
+    ]);
+    expect(classifyOriginal(originalUrl('123', 1, 'gif'), '123', 1)).toEqual({ unavailable: 'unsupported-original-format' });
+  });
+  it.each([originalUrl('999', 0, 'gif'), originalUrl('123', 1, 'gif'), 'https://evil.example/img-original/x.png', originalUrl().replace('https:', 'http:')])('still rejects the whole listing for mismatched or foreign original %s', url => {
+    const payload = pagePayload('123', 1); payload.body[0]!.urls.original = url;
+    expect(() => parseArtworkPages(payload, '123')).toThrow();
+  });
+  it('the worker validator remains strict for non-inspectable shapes', () => {
+    expect(() => validatePixivImageUrl(originalUrl('123', 0, 'gif'), '123', 0)).toThrow('image-artwork-mismatch');
+  });
+  it('reports pixiv error payloads with sanitized, bounded server text', async () => {
+    const message = `該当作品は削除されたか、存在しない作品IDです。\u0000<script>${'x'.repeat(400)}`;
+    expect(() => parseArtworkPages({ error: true, message, body: [] }, '123')).toThrow('pixiv-pages-error');
+    try { parseArtworkPages({ error: true, message, body: [] }, '123'); } catch (error) {
+      const detail = (error as InspectionError).detail!;
+      expect(detail.length).toBeLessThanOrEqual(200); expect(detail).not.toContain('\u0000'); expect(detail).toContain('<script>');
+    }
+    expect(pixivMessage(42)).toBeUndefined(); expect(pixivMessage('  ')).toBeUndefined();
+  });
+  it('reads a small JSON body for 4xx but never for 429 or HTML', async () => {
+    const json = (status: number) => new Response(JSON.stringify({ error: true, message: 'not found' }), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
+    await expect(getArtworkPages('123', undefined, vi.fn<typeof fetch>().mockResolvedValue(json(404)))).rejects.toMatchObject({ code: 'pixiv-pages-http-404', detail: 'not found' });
+    await expect(getArtworkPages('123', undefined, vi.fn<typeof fetch>().mockResolvedValue(new Response('<html>', { status: 403, headers: { 'content-type': 'text/html' } })))).rejects.toMatchObject({ code: 'pixiv-pages-http-403', detail: undefined });
+    await expect(getArtworkPages('123', undefined, vi.fn<typeof fetch>().mockResolvedValue(json(429)))).rejects.toMatchObject({ code: 'pixiv-pages-http-429', detail: undefined });
+    const big = new Response('{"message":"' + 'x'.repeat(70_000) + '"}', { status: 400, headers: { 'content-type': 'application/json' } });
+    await expect(getArtworkPages('123', undefined, vi.fn<typeof fetch>().mockResolvedValue(big))).rejects.toMatchObject({ code: 'pixiv-pages-http-400', detail: undefined });
+  });
+  it('explains each failing layer from evidence without claiming certainty', () => {
+    expect(accessExplanation('http-403', 'original')).toContain('Refererのない取得を拒否');
+    expect(accessExplanation('http-403', 'original')).toContain('Referer付与・Cookie移植・代理取得を行わない');
+    expect(accessExplanation('pixiv-pages-http-403', 'pages')).toContain('この応答だけでは特定できません');
+    expect(accessExplanation('pixiv-pages-http-404', 'pages', '削除')).toContain('pixivの応答:「削除」');
+    expect(accessExplanation('http-503', 'original')).toContain('サーバー側のエラー');
+    expect(accessExplanation('pixiv-pages-timeout', 'pages')).toContain('タイムアウト');
   });
 });

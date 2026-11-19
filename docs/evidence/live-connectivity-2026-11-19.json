@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "mode": "live-pixiv",
-  "startedAt": "2026-10-23T02:51:55.484Z",
-  "revision": "b31a0b9edf5ce49a0c6bad54e2f38b60e53bcf98",
+  "startedAt": "2026-11-19T01:05:30.338Z",
+  "revision": "9c77a031c09b8623d39b3ed3cfa7f6821f803f1f",
   "worktreeDirty": true,
   "extensionArtifacts": {
     "manifest.json": "93e0d5b9191b07efbbf351d2139d1fbfc06ed529e107beb0044498e8881d9ef6",
-    "background.js": "2f01e5354e68cdc5d3a09c972e1a2e5166d1a5b865a36a787a9bd68d39c94717",
-    "content-scripts/pixiv.js": "8409f90b33882a625fdd1cc087d1b466ce9fce293675418c03a2f191c8006a7c"
+    "background.js": "75661a00aaa9d987ad4e571d366f1c3700eec32200f2024431f2ce7c524a093b",
+    "content-scripts/pixiv.js": "4307ca71dcde08cbb2884017ca5956e7b795ec1e1c2cd02977141624f2b291c9"
   },
   "signedIn": false,
   "credentialsImported": false,
@@ -19,7 +19,8 @@
     "document": {
       "result": "FAIL",
       "status": 403,
-      "mime": "text/html; charset=UTF-8"
+      "mime": "text/html; charset=UTF-8",
+      "reason": "cloudflare-managed-challenge"
     },
     "injection": {
       "result": "NOT RUN"
@@ -40,9 +41,9 @@
   "network": [],
   "originalRequests": 0,
   "notes": [
-    "Document denied or unavailable. No retry, API request, original request or bypass was attempted."
+    "Document returned a Cloudflare managed challenge (cf-mitigated: challenge) to this automated browser profile. It was not solved or evaded; use the manual GUI procedure in a normal browser."
   ],
-  "browser": "155.0.8059.84",
+  "browser": "156.0.8078.4",
   "extensionLoaded": true,
-  "finishedAt": "2026-10-23T02:51:55.841Z"
+  "finishedAt": "2026-11-19T01:05:31.017Z"
 }

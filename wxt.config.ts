@@ -4,8 +4,7 @@ export default defineConfig({
   manifestVersion: 3,
   manifest: {
     name: 'pixiv AI Metadata Inspector',
-    description: 'Inspect embedded AI image generation metadata on the pixiv artwork you open.',
-    version: '0.1.0',
+    description: 'Hover previews for pixiv thumbnails and click-to-inspect AI generation metadata, processed locally.',
     minimum_chrome_version: '120',
     permissions: [],
     host_permissions: [

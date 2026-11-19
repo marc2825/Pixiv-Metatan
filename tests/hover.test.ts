@@ -86,7 +86,8 @@ describe('delegated hover preview', () => {
     expect(control('.hover-local').disabled).toBe(false); expect(deps.send).toHaveBeenCalledOnce();
     destroy();
     mount({ pages: vi.fn().mockRejectedValue(new InspectionError('pixiv-pages-http-403')) }); const anchor = card('456'); await open(anchor);
-    expect(panel().textContent).toContain('画像一覧API'); expect(panel().querySelector('img')?.src).toContain('456_p0');
+    expect(panel().textContent).toContain('作品の画像一覧（pixiv API）'); expect(panel().textContent).toContain('pixiv-pages-http-403');
+    expect(panel().querySelector('img')?.src).toContain('456_p0');
     expect(control('.hover-metadata').disabled).toBe(true); expect(control('.hover-local').disabled).toBe(false);
   });
   it.each([false, true])('shares page information and API rate limits with the artwork panel (limited=%s)', async limited => {
@@ -134,7 +135,7 @@ describe('delegated hover preview', () => {
     const pre = panel().querySelector('pre')!; pre.focus();
     pre.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, composed: true }));
     expect(control('.hover-counter').textContent).toBe('1 / 3'); expect(writeText).not.toHaveBeenCalled();
-    const copy = [...panel().querySelectorAll('button')].find(button => button.textContent === 'promptをコピー')!;
+    const copy = [...panel().querySelectorAll('button')].find(button => button.getAttribute('aria-label') === 'Promptをコピー')!;
     copy.click(); expect(writeText).toHaveBeenCalledWith('line 1\nline 2');
   });
   it('does not assign local metadata to the artwork result cache', async () => {
@@ -158,5 +159,45 @@ describe('delegated hover preview', () => {
     expect(panel().hidden).toBe(true); expect(deps.pages).not.toHaveBeenCalled();
     bad.querySelector('img')!.src = previewUrl(); enter(bad); history.pushState({}, '', '/ranking.php');
     await vi.advanceTimersByTimeAsync(250); expect(deps.pages).not.toHaveBeenCalled();
+  });
+  it('keeps a tab-level 429 cooldown shared by hover and panel even if the worker forgets it', async () => {
+    const limited = { ...emptyResult('access-denied', ['http-429']), error: { layer: 'original' as const, code: 'http-429', retryAfterMs: 120_000 } };
+    const deps = mount({ send: vi.fn().mockResolvedValue(limited) }); await open(card());
+    control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
+    control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
+    expect(deps.send).toHaveBeenCalledOnce(); expect(panel().textContent).toContain('このタブから原寸を取得しません');
+    await vi.advanceTimersByTimeAsync(121_000); await open(card('456'));
+    control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0); expect(deps.send).toHaveBeenCalledTimes(2);
+  });
+  it('previews but never inspects a page whose original shape is not recognised', async () => {
+    const pages = vi.fn().mockResolvedValue([{ page: 0, original: originalUrl(), preview: previewUrl() }, { page: 1, preview: previewUrl('123', 1), unavailable: 'unsupported-original-format' }]);
+    const deps = mount({ pages }); await open(card());
+    control('.hover-next').click();
+    expect(control('.hover-metadata').disabled).toBe(true); expect(panel().textContent).toContain('検査対象外の形式');
+    expect(panel().querySelector('img')?.src).toBe(previewUrl('123', 1));
+    control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0); expect(deps.send).not.toHaveBeenCalled();
+  });
+  it('lets the browser choose between API small/regular derivatives', async () => {
+    const small = previewUrl().replace('/img-master/', '/c/540x540_70/img-master/');
+    mount({ pages: vi.fn().mockResolvedValue([{ page: 0, original: originalUrl(), preview: previewUrl(), previewSmall: small }]) }); await open(card());
+    const img = panel().querySelector('img')!;
+    expect(img.srcset).toBe(`${small} 540w, ${previewUrl()} 1200w`); expect(img.src).toBe(previewUrl());
+  });
+  it('closes on Escape without stealing the key from pixiv when focus is elsewhere', async () => {
+    mount(); await open(card());
+    const outside = document.createElement('input'); document.body.append(outside); outside.focus();
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    let reached = false; document.body.addEventListener('keydown', () => { reached = true; });
+    outside.dispatchEvent(event);
+    expect(panel().hidden).toBe(true); expect(event.defaultPrevented).toBe(false); expect(reached).toBe(true);
+    expect(document.activeElement).toBe(outside);
+  });
+  it('uses one shared ticker and re-attaches the UI if the page removes it', async () => {
+    const interval = vi.spyOn(window, 'setInterval');
+    mount(); expect(interval).toHaveBeenCalledOnce();
+    document.getElementById('pami-extension-root')!.remove();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(document.getElementById('pami-extension-root')?.isConnected).toBe(true);
+    await open(card()); expect(panel().hidden).toBe(false);
   });
 });

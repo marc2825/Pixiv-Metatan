@@ -1,36 +1,40 @@
-# Gate 2: NovelAI公式実装の調査
+# NovelAI形式の調査と実装状況
 
-更新: 2026-10-23。**Gate 2機能の移植と正当な署名の照合はNOT RUN**。Gate 1の実サイト受入までStealth/署名/キャラクター別解析の実装を保留しています。通常PNG readerの実行と、明白な偽署名の拒否だけをローカルで照合しました。
+更新: 2026-11-19。
 
-## 参照を固定
+## 参照した一次資料（固定）
 
-公式リポジトリ: [NovelAI/novelai-image-metadata](https://github.com/NovelAI/novelai-image-metadata)
+- 公式リポジトリ [NovelAI/novelai-image-metadata](https://github.com/NovelAI/novelai-image-metadata) コミット `3428907ac7183d7e36d7cc39e8f46f6f35ce99c1`（MIT License, Copyright 2023 NovelAI）
+  - `nai_meta.py`（Stealth reader）SHA-256 `49fc35c2…881c`
+  - `nai_meta_writer.py`（Stealth writer）SHA-256 `252eb0ef…ecec`
+  - `nai_sig.py`（PNGテキストreader・署名verifier）SHA-256 `66716858…c326`
+- 公式画像APIの定義 `https://image.novelai.net/docs/doc.json`（2026-11-19取得、SHA-256 `6c138b59…1415`）: `RequestParameters.v4_prompt` / `v4_negative_prompt` → `V4ConditionInput { caption: { base_caption, char_captions: [{ char_caption, centers: [{x, y}] }] }, use_coords, use_order, legacy_uc }`
 
-参照コミット: `3428907ac7183d7e36d7cc39e8f46f6f35ce99c1`（2026-08-20）。通常PNGについて公式Python readerを人工1×1画像で実行しました。第三者画像や正当な署名付き画像は取得していません。
+完全なハッシュは`tests/reference/fixtures/expected.json`と`scripts/reference-fixtures.py`にあります。公式コードは拡張にもリポジトリにも含めていません（独自実装・挙動の照合のみ）。
 
-- [nai_meta.py](https://github.com/NovelAI/novelai-image-metadata/blob/3428907ac7183d7e36d7cc39e8f46f6f35ce99c1/nai_meta.py)
-- [nai_sig.py](https://github.com/NovelAI/novelai-image-metadata/blob/3428907ac7183d7e36d7cc39e8f46f6f35ce99c1/nai_sig.py)
-- [MIT License](https://github.com/NovelAI/novelai-image-metadata/blob/3428907ac7183d7e36d7cc39e8f46f6f35ce99c1/LICENSE) (Copyright 2023 NovelAI)
+## 実装済み
 
-Stealth/暗号学的検証は製品に移植していません。通常テキストの1段のComment envelopeは公式readerの挙動に合わせて修正しました。将来コードを移植する場合はMITライセンス全文と帰属を同梱し、参照コミットと変更点を記録してください。
+| 機能 | 実装 | 照合方法 |
+|---|---|---|
+| PNGテキストのComment（1段のenvelopeを含む） | normalize.ts | 公式`nai_sig.extract_png_text_metadata`で読んだ合成fixture |
+| Stealth `stealth_pngcomp` | stealth.ts | 公式writerで作った合成画像（160×48 / 128×128）を公式readerで読み、同じキー・値をJS実装で再現 |
+| V4/V4.5のキャラクター別Prompt・位置 | normalize.ts `v4Captions` | 公式APIスキーマ。合成Commentを公式writer/readerに通して往復を確認 |
 
-## Gate 1品質改善のための実行結果
+Stealthの読み方（公式`nai_meta.py`と同じ）: RGBAへ変換したアルファ面を**転置**して（列優先で）並べ、各LSBを上位ビットから8個ずつバイトにします。先頭15バイトが`stealth_pngcomp`、続く4バイトがペイロードのビット長（big-endian）、その後がgzip圧縮されたUTF-8 JSONです。`Comment`が文字列なら、さらにJSONとして読みます。FECデータ（現在NovelAIは付加しない）は読みません。公式readerは非圧縮の`stealth_pnginfo`を受け付けないため、この拡張も検出のみで内容は解析しません。
 
-`scripts/reference-fixtures.py`は参照ソースのSHA-256を検証し、公式の通常PNG readerとComfyUI SaveImageをローカルで使います。Comment envelopeを従来の正規化が読めないことを再現し、修正後にRAW・共通Prompt・Negative・Seed等の一致を確認しました。64-byteゼロ署名は公式verifierでfalseでしたが、本拡張にはverifierがないためnot-checkedのままです。正当な署名の正例は未確認であり、verifiedの根拠にはしません。[fixtureの出所](../tests/reference/README.md)。
+JS実装の制限: 8-bit・非インターレースのRGBA / グレー+アルファだけ（16-bit、インターレース、パレット+tRNSは未検査と表示）。圧縮ペイロード1 MiB、展開後2 MiB、キー128個まで。
 
-## 確認した形式
+## 未実装: 電子署名の検証
 
-`nai_meta.py`はアルファを転置後に並べ、各LSBを上位ビットから8個ずつバイトにします。`stealth_pngcomp`、32-bit big-endianのビット長、gzip圧縮されたUTF-8 JSONを取り出します。選択した公式版のこの関数は`stealth_pnginfo`を受け付けません。非圧縮形式の互換性を主張するには別途一次資料と照合が必要です。
+`nai_sig.py`は、`signed_hash`を除いたCommentのPython `json.dumps`の出力と、画素のバイト列（RGB、またはアルファのLSBを消したRGBA）を連結し、組み込みの公開鍵でEd25519署名を検証します。ブラウザで同じ判定をするには次が必要です。
 
-`nai_sig.py`は`Comment`から署名値を取り除き、PythonのJSONエンコードと画素バイト列を連結して、組み込み公開鍵に対するEd25519署名を検証します。RGBと、alpha LSBを消去したRGBAの候補を扱います。署名文字列単体やSoftwareだけの判定ではありません。通常PNGテキスト・WebP EXIFの取得処理も存在します。
+1. Pillowと同じ画素バイト列の復元（色変換、16-bit、パレット、インターレース）。Canvasの再描画で一致すると仮定しない。
+2. Python `json.dumps`（空白、Unicodeエスケープ、数値表現、キー順）とバイト単位で一致するシリアライズ。
+3. Ed25519の検証手段（対応ブラウザ版の確認、または監査済みの実装）と、公開鍵の出所の記録。
+4. **正当な署名付き画像による正例**と、改変・署名欠落・偽装の負例。テスト用の鍵で作った署名を本番の公開鍵や「検証済み」表示に結び付けない。
 
-## 実装前に必要なこと
+正例を用意できないため実装していません。この拡張は`verified` / `invalid`を出さず、署名データがあれば「未検証」、なければ「署名データなし」と表示します（作業項目は[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)の3）。
 
-1. 色変換・premultiplied alpha・16-bit/パレット/インターレースを含め、署名対象の画素バイトをPillowと同一に復元する方法を決める。Canvasでの再描画だけで一致すると仮定しない。
-2. 40百万画素/展開後バイト予算を維持し、Stealthの長さ・gzip・JSONも制限する。Worker内の純粋なデコーダが可能なら、新たなoffscreen権限を加えない。
-3. PythonのJSON空白、Unicodeエスケープ、数値、キー順序を再現し、JSの標準JSON.stringifyと同じと仮定しない。
-4. ローカル生成のテスト鍵による署名fixtureを使う場合、それを本番のNovelAI公開鍵やverified表示に接続しない。本番鍵に対する正例の検証も必要。
-5. 同じ権利処理済み画像に対する公式Python検証とブラウザ検証をクロスチェックする。改変、署名欠落、署名偽装、メタデータ競合を含める。
-6. キャラクターPromptはv4_prompt / v4_negative_prompt等の共通captionとchar_captionsを区別し、対応する公式サンプルのスキーマでテストする。現在はRAW保持のみ。
+## 照合していないもの
 
-これらの条件が未充足のため、現実装は`verified` / `invalid`を出しません。通常テキストに署名申告があればnot-checked、なければ通常テキストに限定したnot-presentです。
+実際のNovelAIで生成された画像、NovelAIのクラウドInspect、正当な署名。fixtureはすべて自作の合成画像で、`Software=NovelAI`は試験用の自己申告です。

@@ -32,6 +32,16 @@ describe('synthetic pixiv DOM integration', () => {
     button('元画像を検査').click(); button('元画像を検査').click();
     await vi.waitFor(() => expect(deps.send).toHaveBeenCalledOnce());
     expect(deps.send).toHaveBeenCalledWith(expect.objectContaining({ artworkId: '123', page: 1, url: originalUrl('123', 1) }));
+    // Artwork-page requests are bound to the artwork ID, not to an exact URL incl. hash/query.
+    expect(vi.mocked(deps.send).mock.calls[0]![0]).not.toHaveProperty('contextUrl');
+  });
+  it('lists non-inspectable pages without letting them be selected for inspection', async () => {
+    const deps = mount({ pages: vi.fn().mockResolvedValue([{ page: 0, unavailable: 'unsupported-original-format' }, { page: 1, original: originalUrl('123', 1) }]) });
+    await open();
+    const options = shadow.querySelector('select')!.options;
+    expect(options[0]!.disabled).toBe(true); expect(options[0]!.textContent).toContain('検査対象外'); expect(shadow.querySelector('select')!.value).toBe('1');
+    expect(shadow.textContent).toContain('1枚は検査対象外の形式');
+    button('元画像を検査').click(); await vi.waitFor(() => expect(deps.send).toHaveBeenCalledWith(expect.objectContaining({ page: 1 })));
   });
   it('discards a stale listing after SPA navigation, without fetching another automatically', async () => {
     const pending = deferred<typeof pages>(); const deps = mount({ pages: vi.fn().mockReturnValue(pending.promise) });
@@ -62,7 +72,7 @@ describe('synthetic pixiv DOM integration', () => {
   });
   it('keeps the local fallback usable after denied artwork data', async () => {
     mount({ pages: vi.fn().mockRejectedValue(new Error('403')) }); button('AI Metadata').click();
-    await vi.waitFor(() => expect(shadow.textContent).toContain('作品情報を取得できませんでした'));
+    await vi.waitFor(() => expect(shadow.textContent).toContain('作品の画像一覧（pixiv API）を取得できませんでした'));
     expect(button('元画像を検査').disabled).toBe(true); expect(button('ローカルファイルを検査').disabled).toBe(false);
   });
   it('rejects an oversized local file before opening its byte stream', async () => {
@@ -98,6 +108,22 @@ describe('synthetic pixiv DOM integration', () => {
 });
 
 describe('untrusted display and explicit clipboard access', () => {
+  it('shows signature/Stealth states only when bytes were parsed, and failures first', () => {
+    const container = document.createElement('div');
+    renderResult(container, { ...emptyResult('access-denied', ['http-403 explanation', 'local route']), error: { layer: 'original', code: 'http-403' } });
+    expect(container.textContent).not.toContain('NovelAI電子署名'); expect(container.textContent).not.toContain('Stealth');
+    expect(container.querySelector('.result-problem')?.textContent).toContain('http-403 explanation');
+    expect(container.querySelector('.result-summary')?.textContent).toBe('取得不能');
+    renderResult(container, { ...emptyResult('found', ['note'], 'png'), novelaiSignature: 'not-checked', stealth: 'found', detected: ['novelai'], generator: 'novelai', confidence: 'metadata-indicates' });
+    expect(container.querySelector('.result-summary')?.textContent).toBe('テキスト情報あり / png / メタデータから推定: novelai');
+    expect(container.textContent).toContain('NovelAI電子署名: 未検証（署名データの記載あり');
+    expect(container.textContent).toContain('Stealth（アルファチャンネル）: stealth_pngcompデータあり');
+    expect(container.textContent).not.toContain('検証成功');
+    renderResult(container, { ...emptyResult('no-metadata', [], 'png'), novelaiSignature: 'not-present', stealth: 'not-checked' });
+    expect(container.textContent).toContain('通常テキストに署名データなし（Stealth未検査）');
+    renderResult(container, { ...emptyResult('found', [], 'jpeg'), novelaiSignature: 'not-present' });
+    expect(container.textContent).not.toContain('NovelAI電子署名');
+  });
   it('renders executable-looking metadata only as text, including RAW and source names', async () => {
     const container = document.createElement('div'); document.body.append(container);
     const attack = '<img src=x onerror=alert(1)><script>alert(1)</script>';
@@ -111,8 +137,10 @@ describe('untrusted display and explicit clipboard access', () => {
     const writeText = vi.fn().mockResolvedValue(undefined); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     const container = document.createElement('div'); const result = { ...emptyResult('found', []), fields: { prompt: 'line 1\nline 2' } };
     renderResult(container, result); expect(writeText).not.toHaveBeenCalled();
-    const copies = container.querySelectorAll('button'); copies[0]!.click(); await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(resultText(result)));
-    copies[1]!.click(); expect(JSON.parse(writeText.mock.calls.at(-1)![0])).toEqual(result);
-    writeText.mockRejectedValue(new Error('denied')); copies[0]!.click(); await vi.waitFor(() => expect(container.textContent).toContain('コピーが許可されませんでした'));
+    const find = (name: string) => [...container.querySelectorAll('button')].find(b => b.textContent === name || b.getAttribute('aria-label') === name)!;
+    find('結果をコピー').click(); await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(resultText(result)));
+    find('正規化JSONをコピー').click(); expect(JSON.parse(writeText.mock.calls.at(-1)![0])).toEqual(result);
+    find('Promptをコピー').click(); expect(writeText.mock.calls.at(-1)![0]).toBe('line 1\nline 2');
+    writeText.mockRejectedValue(new Error('denied')); find('結果をコピー').click(); await vi.waitFor(() => expect(container.textContent).toContain('コピーが許可されませんでした'));
   });
 });

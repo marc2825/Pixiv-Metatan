@@ -1,43 +1,46 @@
 # AGENTS.md — pixiv AI Metadata Inspector
 
-## Mission
-Build a small, privacy-first Chrome/Edge MV3 extension with user-hovered pixiv thumbnail previews and explicit metadata inspection of the displayed page. The November 2026 user request extends the original artwork-page-only scope to individual thumbnails on pixiv listings. The differentiator is pixiv integration and evidence transparency, not bulk collection.
+Rules for coding agents working in this repository. Keep changes small, tested and honest about what was verified.
 
-## Ground-truth files (read before editing)
-1. `docs/REQUIREMENTS.md`: source of truth for scope, acceptance criteria, and non-goals.
-2. `docs/ARCHITECTURE.md`: trust boundary, network flow, and supported metadata.
-3. `docs/IMPLEMENTATION_PLAN.md`: milestones and stop/go checks.
-4. `README.md`: instructions must match implemented behavior.
+## Mission
+A small, privacy-first Chrome/Edge MV3 extension: user-hovered pixiv thumbnail previews, and explicit, user-initiated metadata inspection of the displayed page or a user-chosen local file. The value is pixiv integration and evidence transparency, not bulk collection.
+
+## Read before editing
+1. `docs/REQUIREMENTS.md` — scope, acceptance criteria, non-goals.
+2. `docs/ARCHITECTURE.md` — trust boundary, network flow, supported metadata.
+3. `docs/TEST_STATUS.md` — what is verified (PASS / FAIL / NOT RUN) and how.
+4. `docs/IMPLEMENTATION_PLAN.md` — open work, written as issue-ready items.
+5. `README.md` — must match implemented behavior.
 
 ## Hard invariants
-- No automated crawling/search-result sweeping, hidden downloads, proxying, or bypassing pixiv login, age restrictions, access controls, hotlink restrictions or rate limits.
-- Scan **only after a user clicks Metadata / Inspect** on the displayed artwork or preview page. Hover may request that artwork's page list and display derivatives only. One active original-image operation globally; no speculative prefetch or list sweeping.
-- Accept source URLs only on `https://i.pximg.net/img-original/`; obtain original URLs from pixiv's currently accessible artwork data. Never reconstruct filenames blindly if authoritative data is available.
-- Use only the minimum necessary MV3 permissions. Do not read cookies, credentials, tokens, browser history, or unrelated sites.
-- Process image bytes locally. No telemetry, no third-party processing. Do not persist metadata without explicit opt-in.
-- For pixiv 403/401/429, show clear non-bypass fallback: user-provided local original file. Do not add header spoofing, proxy services, or automatic retry loops.
-- Never render untrusted metadata with `innerHTML`, `eval`, JS URL, executable markdown, or dynamically loaded remote JS. Use `textContent` and strict schemas/size limits.
-- Never call a model/source 'proven NovelAI' merely because a `Software`, `Comment`, or `signed_hash` field exists. Explicit signature verification required for a verified badge. Other detection should say 'metadata indicates'.
-- Unknown or absent metadata is not evidence an image is human-made. Image generation tools and web services may strip metadata.
-- Preserve correct multi-page indexing and navigation. Treat pixiv JSON and metadata as untrusted input.
-- Do not include real R18 images or copyrighted user images in the repository; use synthetic/generated-by-us test fixtures.
-- Never silently add broad `*://*/*` host permissions or package tracking libraries. Never expose browser extension messaging as a generic URL fetch proxy.
+- No automated crawling, list sweeping, hidden downloads, proxying, or bypassing pixiv login, age restrictions, access controls, hotlink restrictions or rate limits.
+- Original bytes are fetched **only after a click on Metadata / 元画像を検査**, one page, one active original operation globally. Hover may request that artwork's page list and display derivatives only. No speculative prefetch.
+- Original URLs come from pixiv's accessible artwork data and must match `https://i.pximg.net/img-original/img/…/{id}_p{page}.{png|jpg|jpeg|webp}`. Never reconstruct URLs.
+- **Original fetching stays in the service worker with `credentials: 'omit'`, `referrerPolicy: 'no-referrer'`, `redirect: 'error'`.** i.pximg.net returns 403 to such requests (measured 2026-11-19). The maintainer decided not to work around this: do not add Referer/Origin manipulation, declarativeNetRequest header rules, page-context (content-script) byte fetching, cookie transfer, proxies or retries. The supported path is the local-file fallback.
+- Minimum MV3 permissions: no API permissions; hosts `https://www.pixiv.net/*` and `https://i.pximg.net/*` only (`npm run check:manifest` enforces this). Never add broad hosts, cookies, tabs, storage or webRequest without an explicit, documented decision.
+- Process bytes locally. No telemetry, analytics, ads or third-party processing. No persistence of images or results.
+- Never render untrusted metadata with `innerHTML`, `eval`, JS URLs, markdown or remote code. Use `textContent` and bounded parsers.
+- Self-reported metadata says "metadata indicates" (メタデータから推定). Only a real cryptographic verifier may produce `verified`/`invalid`; none exists yet.
+- Absent, unsupported or inaccessible metadata is never evidence of human authorship.
+- Treat pixiv JSON, DOM and image metadata as untrusted. Preserve page indexing; never skip or renumber pages.
+- No real R18 or third-party images in the repository. Fixtures are synthetic and generated here.
+- Extension messaging must never become a generic fetch proxy.
 
-## Preferred implementation
-- TypeScript + WXT + MV3 + Vitest; no backend and no heavy UI framework for MVP.
-- `entrypoints/`: isolated content UI vs background network privilege.
-- `src/pixiv/`: pixiv-specific id/page/URL adapters.
-- `src/metadata/`: pure parsers and safe normalized results independent of pixiv.
-- `src/ui/`: presentational code; do not render image prompt text as HTML.
-- Tests are required for new parsing formats, access failures, signature states, and URL validation.
+## Layout
+- `entrypoints/` — content script (isolated world, closed shadow root) and MV3 service worker.
+- `src/pixiv/` — URL/ID validation, pages API adapter, thumbnail detection, per-tab page store.
+- `src/network/` — worker inspection boundary, failure explanations, cooldowns.
+- `src/metadata/` — pure, bounded parsers (PNG text, Stealth, EXIF, JSON) and classification.
+- `src/ui/` — presentational code and shared styles.
+- `tests/` — Vitest (`*.test.ts`), Playwright synthetic UI (`tests/browser`) and production MV3 (`tests/extension`).
 
-## Workflow expected of Codex
-1. Read specification. Inspect current code and TODOs. State a concise milestone plan.
-2. Implement the highest priority incomplete milestone without expanding scope.
-3. Run `npm run typecheck`, `npm test`, `npm run build` and fix failures.
-4. For pixiv live checks, distinguish 'not run' from 'passed'; do not fabricate network verification.
-5. Document changed files, testing evidence, remaining limits, and any risks.
-6. Never push, publish, or install an extension to another profile without explicit request.
+## Workflow
+1. Read the specification and current code; state a short plan.
+2. Add a failing test for each bug or new format, then fix. New parsers need upstream-verified fixtures (`scripts/reference-fixtures.py`) or a documented reason why not.
+3. Run `npm run typecheck`, `npm test`, `npm run build`, `npm run build:edge`, `npm run check:manifest`; run `npm run test:browser` and `npm run test:extension` when UI/worker code changes.
+4. Live pixiv checks: distinguish NOT RUN from PASS/FAIL. Synthetic success is never live success. Do not evade bot challenges.
+5. Update README/docs in the same change. Record evidence without images, prompts, credentials, artwork IDs or local paths.
+6. Never push, publish, create releases/issues, or install into another browser profile without an explicit request.
 
-## Current prototype limitations
-The prototype supports hover previews, multipage navigation, bounded tab-memory caches and explicit inspection from pixiv listings, alongside the original artwork/local-file UI. PNG tEXt/zTXt/iTXt, CRC, bounded inflation, streamed image limits, artwork/page/sender/context checks and cancellation remain in place. Production MV3 tests use temporary Chrome profiles and synthetic responses. Real pixiv connectivity returned a document-level 403 on 2026-11-15; artwork API/original fetching, live thumbnail markup and real Edge remain unverified. It does **not** inspect NovelAI stealth alpha-channel metadata, separate V4/V5 character captions, decode JPEG/WebP/EXIF, or verify NovelAI signatures. PNG pixels are not decoded. See `docs/TEST_STATUS.md` and sanitized evidence; synthetic successes are not live pixiv successes. Gate 2 remains deferred until live acceptance is GO.
+## Current status (2026-11-19)
+Implemented and synthetic-tested: hover previews, multipage navigation, explicit inspection, local files, PNG text, NovelAI Stealth (`stealth_pngcomp`), NovelAI V4/V4.5 character captions, JPEG/WebP EXIF (A1111/Forge, ComfyUI WebP), bounded caches, cancellation, cooldowns. Not implemented: NovelAI signature verification, XMP/IPTC, 16-bit/interlaced Stealth. Live pixiv listing DOM, real-tab preview loading and real Edge are NOT VERIFIED. See `docs/TEST_STATUS.md`.

@@ -3,7 +3,8 @@ import type { TextEntry } from './types';
 export { MAX_IMAGE_BYTES, MAX_TEXT_BYTES } from '../limits';
 
 const signature = [137, 80, 78, 71, 13, 10, 26, 10];
-const utf8 = new TextDecoder('utf-8', { fatal: true });
+// ignoreBOM keeps a leading U+FEFF as text instead of silently dropping it.
+const utf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 const crcTable = Uint32Array.from({ length: 256 }, (_, n) => {
   for (let i = 0; i < 8; i++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1;
   return n >>> 0;
@@ -11,7 +12,8 @@ const crcTable = Uint32Array.from({ length: 256 }, (_, n) => {
 
 export function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff;
-  for (const byte of bytes) crc = crcTable[(crc ^ byte) & 255]! ^ (crc >>> 8);
+  // Indexed loop: this runs over every IDAT byte (up to 48 MiB).
+  for (let i = 0; i < bytes.length; i++) crc = crcTable[(crc ^ bytes[i]!) & 255]! ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
 }
 
@@ -52,13 +54,20 @@ export interface PngMetadata {
   notes: string[];
   width: number;
   height: number;
+  bitDepth: number;
+  colorType: number;
+  interlace: number;
+  /** tRNS present: a non-alpha image may still have per-pixel transparency. */
+  transparency: boolean;
+  /** Views into the input (no copies), in order, for the optional Stealth reader. */
+  idat: Uint8Array[];
 }
 
-/** Structural/CRC validation only; IDAT pixels are never expanded in Gate 1. */
+/** Structural/CRC validation and text only; this function never expands IDAT (see stealth.ts). */
 export async function parsePngTextChunks(data: Uint8Array, signal?: AbortSignal): Promise<PngMetadata> {
   if (data.length > MAX_IMAGE_BYTES) throw new InspectionError('too-large');
   if (!isPng(data)) throw new InspectionError('not-png');
-  const result: PngMetadata = { text: Object.create(null), entries: [], notes: [], width: 0, height: 0 };
+  const result: PngMetadata = { text: Object.create(null), entries: [], notes: [], width: 0, height: 0, bitDepth: 0, colorType: 0, interlace: 0, transparency: false, idat: [] };
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let offset = 8, count = 0, budget = MAX_TEXT_BYTES, encodedText = 0;
   let header = false, image = false, imageEnded = false, palette = false;
@@ -82,13 +91,14 @@ export async function parsePngTextChunks(data: Uint8Array, signal?: AbortSignal)
       const depths: Record<number, number[]> = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
       if (!result.width || !result.height || !depths[color]?.includes(depth) || part[10] !== 0 || part[11] !== 0 || part[12]! > 1) throw new InspectionError('invalid-ihdr');
       if (result.width * result.height > MAX_PIXELS) throw new InspectionError('pixel-limit');
+      result.bitDepth = depth; result.colorType = color; result.interlace = part[12]!;
       header = true;
     } else if (tag === 'PLTE') {
       if (palette || image || color === 0 || color === 4 || !length || length % 3 || length > 768 || (color === 3 && length / 3 > 2 ** depth)) throw new InspectionError('invalid-palette');
       palette = true;
     } else if (tag === 'IDAT') {
       if (imageEnded || (color === 3 && !palette)) throw new InspectionError('invalid-idat-order');
-      image = true;
+      image = true; result.idat.push(part);
     } else if (tag === 'IEND') {
       if (length || !image || end !== data.length) throw new InspectionError('invalid-iend');
       return result;
@@ -96,6 +106,7 @@ export async function parsePngTextChunks(data: Uint8Array, signal?: AbortSignal)
       throw new InspectionError('unknown-critical-chunk');
     }
     if (image && tag !== 'IDAT') imageEnded = true;
+    if (tag === 'tRNS') result.transparency = true;
     if (tag === 'acTL') result.notes.push('APNGのテキストのみ解析しました。アニメーション画素は未検査です。');
     if (tag === 'tEXt' || tag === 'zTXt' || tag === 'iTXt') {
       encodedText += length;

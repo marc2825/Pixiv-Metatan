@@ -52,6 +52,7 @@ test('hover opens a multipage preview, stays open during transfer, uses wheel/bu
   await page.keyboard.press('ArrowLeft');
   await preview.getByRole('button', { name: 'Metadata', exact: true }).click();
   await expect(preview.getByLabel('プレビューの検査結果', { exact: true })).toContainText('作品 123 / 2枚目');
+  await page.screenshot({ path: '.test-browser/hover-result.png' });
   expect(originals(requests)).toEqual([originalUrl('123', 1)]);
   await preview.getByRole('button', { name: '前の画像', exact: true }).click();
   await expect(preview.getByLabel('プレビューの検査結果', { exact: true })).toBeEmpty();

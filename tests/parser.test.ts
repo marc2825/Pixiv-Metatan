@@ -86,7 +86,10 @@ describe('PNG text reader with independent synthetic PNGs', () => {
   it('does not confuse RIFF/WAVE with WebP and clearly reports unsupported formats', async () => {
     expect(imageFormat(enc.encode('RIFFxxxxWAVE'))).toBe('other');
     expect((await inspectImage(enc.encode('RIFFxxxxWEBP'))).format).toBe('webp');
-    expect((await inspectImage(new Uint8Array([255, 216, 255, 224]))).status).toBe('unsupported-format');
+    expect((await inspectImage(enc.encode('RIFFxxxxWEBP'))).status).toBe('parse-error');
+    const gif = await inspectImage(enc.encode('GIF89a\x01\x00\x01\x00'));
+    expect(gif).toMatchObject({ status: 'unsupported-format', format: 'other' }); expect(gif.notes.join(' ')).toContain('非AI生成の証拠になりません');
+    expect((await inspectImage(new Uint8Array([255, 216, 255, 224]))).status).toBe('parse-error');
   });
 });
 

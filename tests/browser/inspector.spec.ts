@@ -42,7 +42,7 @@ test('synthetic page: no prefetch, page selection, safe text and unverified sign
   expect(images(requests)).toEqual([originalUrl('123', 1)]);
   await expect(page.getByLabel('検査結果', { exact: true }).locator('img,script')).toHaveCount(0);
   await expect(page.getByLabel('検査結果', { exact: true })).toContainText('<img src=x onerror=alert(1)>');
-  await page.getByText('RAWテキストチャンク（重複を含む）', { exact: true }).click();
+  await page.getByText('RAWテキスト（重複・Stealth・EXIFを含む）', { exact: true }).click();
   await expect(page.locator('details[open]')).toContainText('signed_hash');
 });
 
@@ -59,15 +59,21 @@ test('denied original falls back to an explicitly chosen local compressed PNG', 
   expect(images(requests)).toHaveLength(1);
 });
 
-test('artwork API denial allows local read; JPEG is reported as unsupported', async ({ page }) => {
+test('artwork API denial allows local read; JPEG EXIF is parsed and truncated JPEG is a parse failure', async ({ page }) => {
   const requests = await start(page, { apiStatus: 429 });
   await page.getByRole('button', { name: 'AI Metadata', exact: true }).click();
   await expect(page.getByRole('status').first()).toContainText('http-429');
   await expect(page.getByRole('button', { name: '元画像を検査', exact: true })).toBeDisabled();
-  const picker = page.waitForEvent('filechooser');
+  let picker = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'ローカルファイルを検査', exact: true }).click();
+  // Written by AUTOMATIC1111's unchanged save_image_with_geninfo (see tests/reference/README.md).
+  await (await picker).setFiles({ name: 'a1111-exif.jpg', mimeType: 'image/jpeg', buffer: await readFile('tests/reference/fixtures/a1111-exif.jpg') });
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('テキスト情報あり / jpeg / メタデータから推定: a1111-forge');
+  await expect(page.getByLabel('検査結果', { exact: true })).not.toContainText('NovelAI電子署名');
+  picker = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'ローカルファイルを検査', exact: true }).click();
   await (await picker).setFiles({ name: 'synthetic.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([255, 216, 255, 224]) });
-  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('未対応形式 / jpeg');
+  await expect(page.getByLabel('検査結果', { exact: true })).toContainText('解析失敗 / jpeg');
   expect(images(requests)).toHaveLength(0);
 });
 

@@ -1,57 +1,62 @@
-# Verification status — 2026-11-15 (JST)
+# Verification status — 2026-11-19 (JST)
 
-**実装・合成試験: GO。実pixiv受入・リリース: NO-GO。** 通常接続のdocumentが403で、実作品のAPI・画像・DOMは未検証。原寸403の原因は特定していない。
+**Implementation and synthetic tests: PASS. Live pixiv acceptance: not done. The hover UI is NOT VERIFIED on real pages, and the original fetch was measured as rejected (403).**
 
-## 最終結果
+## Automated results
 
-| 検証 | 結果 | 範囲 |
+| Command | Result | Scope |
 |---|---|---|
-| `npm run typecheck` | PASS | WXT prepare + TypeScript strict |
-| `npm test` | PASS | 8 files / 191 tests。既存141件を維持 |
-| `npm run build` | PASS | Chrome MV3、約57.69 kB |
-| `npm run build:edge` | PASS | Edge MV3、約57.69 kB。実Edge起動とは別 |
-| `npm run test:browser` | PASS | 12件。テスト用アダプタ・合成ページ/HTTP |
-| `npm run test:extension` | PASS（17件） | 本番MV3・closed root・runtime/Worker。合成HTTPのみ |
-| 独立したreader/writer fixture | PASS | 既存の人工6件を単体・本番Worker経由で維持。実生成・正当な署名の証明ではない |
-| `git diff --check` / 生成manifest | PASS | API権限なし、pixiv/pximgホストのみ。依存追加なし |
-| 実pixivトップページ | FAIL | Chrome 156.0.8078.4、通常HTTPS、document HTTP 403 / text/html |
-| 実pixiv一覧DOM・ホバー・複数枚 | NOT RUN | document拒否。正規のテスト作品URLも未指定 |
-| 実作品API・原寸URL・CDN取得 | NOT RUN | document拒否で停止。原寸リクエスト0 |
-| 通常操作で原寸を開く / Workerとの比較 | NOT RUN | 作品API・原寸URL未取得 |
-| ログイン/公開範囲/年齢制限の正規閲覧 | NOT RUN | 認証移植なし。新規ログアウトプロファイル |
-| 実Edge / 最低Chrome・Edge 120 / 高DPI / 長時間寿命 | NOT RUN | Edgeビルドと実Edge動作を区別 |
-| Stealth / V4-V5キャラクターPrompt / EXIF / 署名検証 | 未実装 | 今回の範囲外。verified/invalidを生成しない |
+| `npm run typecheck` | PASS | WXT prepare + TypeScript strict (src, entrypoints, tests, scripts) |
+| `npm test` | PASS — 10 files / 279 tests | Parsers, 12 upstream-verified reference fixtures, URL/authorisation, worker, DOM races, caches, wheel, UI rendering (191 tests before this audit, all kept) |
+| `npm run build` | PASS | Chrome MV3, 96.63 kB (background 29.1 kB, content 61.7 kB, icons) |
+| `npm run build:edge` | PASS | Edge MV3, same size. A build, not a run in real Edge |
+| `npm run check:manifest` | PASS | Chrome/Edge: no API permissions; hosts pixiv/pximg only; top-frame isolated script |
+| `npm run test:browser` | PASS — 12 tests | Test adapter, synthetic pages and HTTP, Chromium 156 |
+| `npm run test:extension` | PASS — 17 tests | Production MV3 (closed root, runtime messaging, worker) in disposable profiles; all HTTP synthetic ([evidence](evidence/mv3-synthetic-2026-11-19.json)) |
+| `npm audit` | 0 vulnerabilities | devDependencies only |
+| `git diff --check` | PASS | |
+| GitHub Actions CI | NOT RUN | Workflow added; not pushed (no push without explicit request) |
 
-## 自動試験で確認したこと
+Reference fixtures (`scripts/reference-fixtures.py`) were regenerated with pinned, hash-checked upstream code. NovelAI's official Stealth writer and reader, ComfyUI `SaveImage` and `_create_webp_metadata`, and AUTOMATIC1111 v1.10.1 `save_image_with_geninfo` / `read_info_from_image` all passed their read-backs. The six older fixtures were reproduced byte-for-byte.
 
-- 従来の通常PNG、CRC/構造/圧縮/サイズ/JSON上限、NovelAI/ComfyUI/A1111、未対応・メタなし、安全なテキスト表示、署名の自己申告を維持。
-- 遅延追加のサムネイル、250ms遅延・通過時の取消、プレビューへの移動・離脱猶予、高速ホバーの遅いAPI応答、単一/複数枚、ページ境界と番号。
-- 小さなwheelデルタの蓄積、連続trackpadの1ジェスチャ、クールダウン、ボタン/左右キー、単一画像と通常リンク操作の維持。
-- 狭幅ライト/ダークで画面端の配置、キーボードでの進入・Tab・Escape・フォーカス復帰、Prompt内キー操作、ページスクロールの抑制範囲。
-- API/原寸の401/403/429、API timeoutの分類、原寸本番15秒timeout、通信エラー、表示用画像の継続とローカル読込。
-- ページ別キャッシュ再利用、件数/容量/LRU/TTL、従来/hover間の一覧・429待機の共有、API直列化・中止済み待機の除外、429 cooldown、古い解析結果の取消、SPA/BFCache/破棄。
-- 自拡張ID・frame・tab・pixiv origin・操作時の完全な現在URL、取得後の再照合、作品/ページ/URL不一致、不正メッセージの拒否。page postMessageからの要求は受け付けない。
-- 実MV3合成試験で検索/ランキング/投稿/ブックマーク/フォロー新着からの解析、Worker起点の原寸1件、2タブの単一枠・取消、ローカル結果の分離。
+## Live pixiv (2026-11-19)
 
-新UIで結果領域が増えたため、既存ブラウザ試験のlocatorsを完全一致にした。API直列化に合わせ、既存DOM試験では通信開始を待ってから遷移/破棄し、従来の取消保証を維持した。検証項目や期待値は削除していない。閉じたShadow DOMではdocument側のcomposedPathから内部ノードが見えないため、結果内キー操作の除外にはshadow.activeElementを使い、回帰試験を追加した。
+| Check | Result | Notes |
+|---|---|---|
+| Document, automated headless Chromium 156 | FAIL (403) | Cloudflare managed challenge (`cf-mitigated: challenge`, "Just a moment..."). Not solved or evaded ([evidence](evidence/live-connectivity-2026-11-19.json)) |
+| Document, plain HTTP client | PASS (200) | No cookies |
+| Pages API, plain HTTP, one public artwork | PASS (200, JSON) | URL shapes (`thumb_mini`, `small`, `regular`, `original`) match the validators |
+| Original, no cookie / no Referer (worker profile) | FAIL (403) | Derivative also 403. The extension does not work around this by policy ([evidence](evidence/live-layers-2026-11-19.json)) |
+| Original or derivative with a pixiv Referer | NOT RUN | Would require forging headers outside a real page |
+| Extension inside a real pixiv tab (listing DOM, preview `<img>`, worker fetch) | NOT RUN | Blocked at document level for automation; needs [manual GUI check](MANUAL_TESTS.md) |
+| Logged-in / age-restricted scope | NOT RUN | No credentials imported |
+| Real Edge, Chrome/Edge 120, high DPI, long sessions | NOT RUN | |
+| Stealth/V4/EXIF on real generated images | NOT RUN | Synthetic upstream-verified fixtures only |
+| NovelAI signature verification | Not implemented | Never shows verified/invalid |
 
-## 実サイトの403と証跡
+The live-connectivity file records the artifact hashes of the build at measurement time. The final build hashes are in the synthetic evidence file.
 
-[2026-11-15通常接続](evidence/live-connectivity-2026-11-15.json)は無認証の一時Chromeプロファイルで、応答差替え・ヘッダー偽装・proxyなし。documentで停止し、API/原寸の再試行はしていない。これは依頼にある原寸`http-403`そのものの再現ではない。API成功・原寸URLの妥当性・画像配信側のアクセス条件・Referer/Cookie/CORSの因果関係は確認できていない。
+## What the automated tests cover
 
-[本番MV3の合成証跡](evidence/mv3-synthetic-2026-11-15.json)にはstatus/MIME、件数、Worker起点か、生成物SHA-256を保存する。画像・Prompt・RAW・Cookie・トークン・実作品URL・HARは含めない。ライブ証跡は接続確認時の中間ビルドのハッシュであり、最終合成試験のビルドと区別する。
+- PNG structure/CRC/order, tEXt/zTXt/iTXt, Latin-1/UTF-8 (BOM kept), duplicates, prototype-like keys, compression bombs, size/pixel/chunk/JSON limits, cancellation.
+- Stealth: all five PNG filter types, multi-column magic for short images, grey+alpha, early exit (corruption after row 120 never decoded), unsupported layouts, `stealth_pnginfo` detection, truncated/oversized/invalid-gzip/gzip-bomb payloads, non-JSON payloads, text-vs-Stealth disagreement notes.
+- EXIF: MM/II UTF-16, ASCII/undefined UserComment, ComfyUI tags only in the documented IFD0 range, malformed JPEG/WebP/TIFF structures, offsets, IFD counts, executable-looking text as data.
+- V4/V4.5 captions: per-character prompts/negatives/positions, schema mismatches flagged, bounds.
+- pixiv: live-observed URL shapes, page order, non-inspectable pages without renumbering, foreign/mismatched originals rejected, `error:true` and 4xx JSON messages sanitised, 429/timeout/HTTP classification.
+- Thumbnail detection: nested targets, multiple images, hovered-image preference, `currentSrc`, lazy placeholders, recycled cards, overlay cards, no guessing outside links, no borrowed authors, bounds.
+- Worker: sender/frame/tab/context checks before and after fetch, artwork-bound vs URL-bound requests, structured failures with Retry-After, global single slot, cancellation, timeout, MIME/magic, streamed limits.
+- UI: 250 ms / 200 ms timing, wheel gestures, keys, Escape propagation, focus retention, tab-level cooldown, non-inspectable pages, `srcset`, single shared ticker, host re-attachment, SPA/BFCache, local files never assigned to artworks, text-only rendering, click-only copy.
 
-過去の2026-10-23証跡は履歴として残している。現状の判定はこの文書と2026-11-15の証跡を参照。
+Test-assertion changes in this audit only followed intended behaviour changes (JPEG is now parsed; new labels). Each kept the original guarantee, and none were deleted.
 
-## 実行環境・制約
+## Environment
 
-Linux x64、Node 24.21.0、npm 11.19.0、Chrome for Testing 156.0.8078.4、Playwright 1.64.1。初回のブラウザ試験は共有ライブラリ不足で起動できなかったが、一時領域の既存ライブラリを指定して再実行した。リポジトリやOSに依存を追加していない。環境指定:
+Linux x64 (WSL2), Node 24.21.0, npm 11.19.0, Playwright 1.64.1 with Chromium 156.0.8078.4. Chromium's missing system libraries (NSS, ALSA) were extracted to a temporary directory for this run only; nothing was installed into the OS or repository. On a normal machine use `npx playwright install --with-deps chromium`. Temporary browser profiles were deleted after each run; no existing user profile was used.
 
-```bash
-LD_LIBRARY_PATH=/tmp/portfolio-ci-libs/root/usr/lib/x86_64-linux-gnu \
-PAMI_CHROME_PATH=/home/marc2825/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome \
-npm run test:browser
-# 同じ指定で npm run test:extension / npm run verify:live
-```
+## 公開判定
 
-ブラウザ起動・通常接続はsandbox外で実行した。一時プロファイルは試験後に削除し、既存ユーザープロファイルは操作していない。次は[実機確認](MANUAL_TESTS.md)で正規に閲覧できるテスト作品のDOM・API/CDN・Chrome/Edgeを確認する。
+| 対象 | 判定 | 根拠 |
+|---|---|---|
+| GitHubでのソース公開 | CONDITIONAL GO | 秘密情報・第三者画像・個人のローカルパスなし。ライセンス・文書・試験あり。条件: private vulnerability reportingを有効化、CIをGitHub上で一度確認 |
+| GitHub Releasesでの配布 | NO-GO | 実タブでのホバー・一覧検出が未確認。Metadataは実pixivで403になる想定。手動受入（MANUAL_TESTS 1〜8）後に、制限を明記したプレリリースとして再判定 |
+| Chrome Web Store | NO-GO | 上記に加え、プライバシーポリシーURL・ストア素材・名称（第三者商標）・pixiv規約の確認が未了。主要機能（原寸取得）が方針により実pixivで動作しない |

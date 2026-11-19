@@ -3,7 +3,7 @@ import { imageFormat, inspectImage } from '../metadata/inspect';
 import { isRecord } from '../metadata/normalize';
 import { emptyResult, type InspectionResult } from '../metadata/types';
 import { artworkIdFromUrl, isPixivPage, validatePixivImageUrl } from '../pixiv/artworks';
-import { accessExplanation, localFallback, retryAfterMs } from './failures';
+import { accessExplanation, formatWait, localFallback, retryAfterMs } from './failures';
 
 export interface InspectRequest {
   type: 'INSPECT_PIXIV_IMAGE'; requestId: string; artworkId: string; page: number; url: string;
@@ -20,11 +20,16 @@ interface Dependencies {
 }
 
 const fallback = `${localFallback}アクセス制限の回避や自動再試行は行いません。`;
-function failure(error: unknown, timedOut: boolean, cancelled: boolean): InspectionResult {
-  if (timedOut) return emptyResult('access-denied', ['画像取得がタイムアウトしました（15秒）。', fallback]);
+function failure(error: unknown, timedOut: boolean, cancelled: boolean, retryAfter?: number): InspectionResult {
+  if (timedOut) return { ...emptyResult('access-denied', ['画像の取得・解析がタイムアウトしました（15秒）。', fallback]), error: { layer: 'original', code: 'timeout' } };
   if (cancelled) return emptyResult('cancelled', ['検査を取り消しました。']);
   const code = error instanceof InspectionError ? error.code : 'network-error';
-  return emptyResult(code === 'too-large' ? 'too-large' : 'access-denied', [accessExplanation(code, 'original'), fallback]);
+  if (code === 'too-large') return { ...emptyResult('too-large', ['原寸画像が安全上限（48 MiB）を超えるため読み込みを中止しました。', fallback]), error: { layer: 'original', code } };
+  const wait = retryAfter !== undefined ? `あと約${formatWait(retryAfter)}は再取得しません。` : '';
+  return {
+    ...emptyResult('access-denied', [accessExplanation(code, 'original') + wait, fallback]),
+    error: { layer: 'original', code, ...(retryAfter !== undefined ? { retryAfterMs: retryAfter } : {}) },
+  };
 }
 function validRequestId(value: unknown): value is string { return typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value); }
 
@@ -51,7 +56,7 @@ export function createInspector(deps: Dependencies) {
     try { url = validatePixivImageUrl(message.url, artworkId, page); }
     catch (error) { return Promise.resolve(failure(error, false, false)); }
     if (active) return Promise.resolve(emptyResult('busy', ['別の画像を検査中です。完了または取り消し後にもう一度操作してください。']));
-    if (Date.now() < blockedUntil) return Promise.resolve(failure(new InspectionError('http-429'), false, false));
+    if (Date.now() < blockedUntil) return Promise.resolve(failure(new InspectionError('http-429'), false, false, blockedUntil - Date.now()));
     const operation = { tabId, requestId, artworkId, contextUrl, controller: new AbortController() };
     const matchesContext = (currentUrl?: string) => isPixivPage(currentUrl ?? '') && (contextUrl !== undefined ? currentUrl === contextUrl : artworkIdFromUrl(currentUrl ?? '') === artworkId);
     // Acquire before the first await, including current-tab validation.
@@ -85,7 +90,8 @@ export function createInspector(deps: Dependencies) {
         signal.throwIfAborted();
         return { ...result, source: { kind: 'pixiv', artworkId, page, url } };
       } catch (error) {
-        return failure(error, timedOut, signal.aborted);
+        const limited = error instanceof InspectionError && error.code === 'http-429' && Date.now() < blockedUntil;
+        return failure(error, timedOut, signal.aborted, limited ? blockedUntil - Date.now() : undefined);
       } finally {
         clearTimeout(timer);
         if (active === operation) active = undefined;

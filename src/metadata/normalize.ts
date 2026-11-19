@@ -1,38 +1,6 @@
-import { MAX_TEXT_BYTES } from '../limits';
+import { isRecord, parseMetadataJson } from './json';
 import type { Confidence, Evidence, GeneratorKind, InspectionResult } from './types';
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-/** Bounded input plus iterative depth/node checks; never recurse into unknown JSON. */
-export function parseMetadataJson(text: string): unknown {
-  if (text.length > MAX_TEXT_BYTES) throw new Error('json-too-large');
-  // Bound nesting before JSON.parse (and later JSON.stringify).
-  let depth = 0, quoted = false, escape = false;
-  for (const char of text) {
-    if (quoted) {
-      if (escape) escape = false;
-      else if (char === '\\') escape = true;
-      else if (char === '"') quoted = false;
-    } else if (char === '"') quoted = true;
-    else if (char === '[' || char === '{') { if (++depth > 64) throw new Error('json-too-deep'); }
-    else if (char === ']' || char === '}') depth--;
-  }
-  const value: unknown = JSON.parse(text);
-  const queue = [value];
-  let nodes = 0;
-  while (queue.length) {
-    if (++nodes > 50_000) throw new Error('json-too-many-values');
-    const item = queue.pop();
-    if (item && typeof item === 'object') {
-      const values = Object.values(item);
-      if (nodes + queue.length + values.length > 50_000) throw new Error('json-too-many-values');
-      queue.push(...values);
-    }
-  }
-  return value;
-}
+export { isRecord, parseMetadataJson } from './json';
 
 /** Commas inside quoted settings (e.g. model names) are not separators. */
 export function parseParameters(text: string): Record<string, string> {
@@ -55,7 +23,12 @@ export function parseParameters(text: string): Record<string, string> {
     if (char === ',' && !quoted) { parts.push(settings.slice(start, i)); start = i + 1; }
   }
   parts.push(settings.slice(start));
-  const names: Record<string, string> = { Steps: 'steps', Sampler: 'sampler', 'CFG scale': 'cfg', Seed: 'seed', Size: 'size', Model: 'model', 'Model hash': 'model hash', VAE: 'vae', 'VAE hash': 'vae hash', 'Lora hashes': 'lora hashes', 'Schedule type': 'schedule type' };
+  const names: Record<string, string> = {
+    Steps: 'steps', Sampler: 'sampler', 'Schedule type': 'schedule type', 'CFG scale': 'cfg', Seed: 'seed', Size: 'size',
+    Model: 'model', 'Model hash': 'model hash', VAE: 'vae', 'VAE hash': 'vae hash', 'Clip skip': 'clip skip',
+    'Denoising strength': 'denoising strength', 'Hires upscale': 'hires upscale', 'Hires steps': 'hires steps',
+    'Hires upscaler': 'hires upscaler', 'Lora hashes': 'lora hashes', 'TI hashes': 'ti hashes', Version: 'version',
+  };
   for (const part of parts) {
     const colon = part.indexOf(':');
     const name = part.slice(0, colon).trim();
@@ -65,6 +38,28 @@ export function parseParameters(text: string): Record<string, string> {
     fields[names[name]!] = value;
   }
   return fields;
+}
+
+/**
+ * NovelAI V4/V4.5 multi-character captions. Schema from the official image API definition
+ * (image.novelai.net/docs/doc.json: RequestParameters.v4_prompt / v4_negative_prompt ->
+ * V4ConditionInput { caption: { base_caption, char_captions: [{ char_caption, centers: [{x,y}] }] } }).
+ * Values that do not match the schema are ignored (RAW still keeps them).
+ */
+export function v4Captions(value: unknown): { base?: string; characters: { caption: string; centers: string }[] } | undefined {
+  if (!isRecord(value) || !isRecord(value.caption)) return undefined;
+  const { base_caption: base, char_captions: list } = value.caption;
+  if (base !== undefined && typeof base !== 'string') return undefined;
+  if (list !== undefined && !Array.isArray(list)) return undefined;
+  const characters: { caption: string; centers: string }[] = [];
+  for (const item of (list ?? []).slice(0, 32)) {
+    if (!isRecord(item) || typeof item.char_caption !== 'string') return undefined;
+    const centers = Array.isArray(item.centers)
+      ? item.centers.filter(isRecord).filter(c => typeof c.x === 'number' && typeof c.y === 'number').slice(0, 8).map(c => `(${c.x}, ${c.y})`).join(' ')
+      : '';
+    characters.push({ caption: item.char_caption, centers });
+  }
+  return { base, characters };
 }
 
 export function classifyTextChunks(chunks: Record<string, string>) {
@@ -98,10 +93,25 @@ export function classifyTextChunks(chunks: Record<string, string>) {
     if (chunks.Description) fields.prompt = chunks.Description;
     if (chunks.Source) fields.model = chunks.Source;
     if (isRecord(comment)) {
-      const names: Record<string, string> = { prompt: 'prompt', uc: 'negative', seed: 'seed', steps: 'steps', sampler: 'sampler', scale: 'cfg', width: 'width', height: 'height', model: 'model', noise_schedule: 'noise schedule' };
+      const names: Record<string, string> = { prompt: 'prompt', uc: 'negative', seed: 'seed', steps: 'steps', sampler: 'sampler', scale: 'cfg', cfg_rescale: 'cfg rescale', width: 'width', height: 'height', model: 'model', noise_schedule: 'noise schedule' };
       for (const [key, name] of Object.entries(names)) {
         const value = comment[key];
         if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') fields[name] = String(value);
+      }
+      if (fields.negative === undefined && typeof comment.negative_prompt === 'string') fields.negative = comment.negative_prompt;
+      const positive = v4Captions(comment.v4_prompt), negative = v4Captions(comment.v4_negative_prompt);
+      if ((comment.v4_prompt !== undefined && !positive) || (comment.v4_negative_prompt !== undefined && !negative)) {
+        notes.push('v4_prompt / v4_negative_prompt が公式APIスキーマと一致しません。RAWを確認してください。');
+      }
+      // Base captions normally duplicate prompt/uc; show them only when they add information.
+      if (positive?.base !== undefined && positive.base !== fields.prompt) fields['base prompt'] = positive.base;
+      if (negative?.base !== undefined && negative.base !== fields.negative) fields['base negative'] = negative.base;
+      const count = Math.max(positive?.characters.length ?? 0, negative?.characters.length ?? 0);
+      for (let i = 0; i < count; i++) {
+        const p = positive?.characters[i], n = negative?.characters[i];
+        if (p) fields[`character ${i + 1} prompt`] = p.caption;
+        if (n && n.caption) fields[`character ${i + 1} negative`] = n.caption;
+        if (p?.centers) fields[`character ${i + 1} position`] = p.centers;
       }
     }
   }

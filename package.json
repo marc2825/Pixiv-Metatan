@@ -2,7 +2,7 @@
   "name": "pixiv-ai-metadata-inspector",
   "private": true,
   "version": "0.1.0",
-  "description": "User-initiated AI image metadata inspection on pixiv artworks",
+  "description": "Hover previews and user-initiated AI image metadata inspection on pixiv (Chrome/Edge MV3)",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -16,18 +16,22 @@
     "test:browser": "vite build --config tests/browser/vite.config.ts && playwright test",
     "test:extension": "npm run build && playwright test --config playwright.extension.config.ts",
     "verify:live": "node --experimental-strip-types scripts/verify-live.ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:manifest": "node scripts/check-manifest.mjs",
+    "zip:edge": "wxt zip -b edge",
+    "fixtures:reference": "python3 scripts/reference-fixtures.py"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
     "@types/node": "26.6.5",
     "jsdom": "29.1.1",
-    "typescript": "^5.9.3",
+    "typescript": "5.9.3",
     "vite": "8.3.5",
-    "vitest": "^5.0.5",
-    "wxt": "^0.21.4"
+    "vitest": "5.0.5",
+    "wxt": "0.21.4"
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "license": "MIT"
 }

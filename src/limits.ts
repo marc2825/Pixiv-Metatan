@@ -3,9 +3,12 @@ export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 export const MAX_PIXELS = 40_000_000;
 export const MAX_PAGES = 1000;
 export const TIMEOUT_MS = 15_000;
+/** Compressed NovelAI stealth payload cap (decompressed text still uses MAX_TEXT_BYTES). */
+export const MAX_STEALTH_BYTES = 1024 * 1024;
 
 export class InspectionError extends Error {
-  constructor(public readonly code: string) { super(code); }
+  /** `detail` is optional untrusted server text, length-limited and rendered as plain text only. */
+  constructor(public readonly code: string, public readonly detail?: string) { super(code); }
 }
 
 /** Count actual bytes, including when Content-Length is absent or dishonest. */

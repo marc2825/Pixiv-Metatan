@@ -23,20 +23,22 @@ test('production injection, closed root and real runtime messaging inspect exact
   expect(extension.unexpected).toEqual([]);
 });
 
-test('workflow, A1111, no metadata and JPEG remain distinguishable through the installed extension', async ({ extension }) => {
+test('workflow, A1111, no metadata, JPEG EXIF and truncated JPEG remain distinguishable through the installed extension', async ({ extension }) => {
   const { driver } = await extension.open(); await ready(driver);
   const cases = [
     { body: pngWithText({ workflow: '{"nodes":[]}' }), mime: 'image/png', expected: 'メタデータから推定: comfyui' },
     { body: pngWithText({ parameters: 'synthetic\nNegative prompt: bad\nSteps: 20, Sampler: Euler, CFG scale: 7, Seed: 42' }), mime: 'image/png', expected: 'メタデータから推定: a1111-forge' },
     { body: png(), mime: 'image/png', expected: '対応範囲にメタデータなし / png' },
-    { body: new Uint8Array([255, 216, 255, 224]), mime: 'image/jpeg', expected: '未対応形式 / jpeg' },
+    { body: new Uint8Array(readFileSync('tests/reference/fixtures/a1111-exif.jpg')), mime: 'image/jpeg', expected: 'テキスト情報あり / jpeg / メタデータから推定: a1111-forge' },
+    { body: new Uint8Array(readFileSync('tests/reference/fixtures/synthetic.jpg')), mime: 'image/jpeg', expected: '対応範囲にメタデータなし / jpeg' },
+    { body: new Uint8Array([255, 216, 255, 224]), mime: 'image/jpeg', expected: '解析失敗 / jpeg' },
   ];
   for (const item of cases) {
     extension.replies.set(0, item); await driver.click(ui.scan);
     await expect.poll(() => driver.text(ui.result)).toContain(item.expected);
     await expect.poll(() => driver.disabled(ui.scan)).toBe(false);
   }
-  expect(extension.records.filter(r => r.kind === 'original')).toHaveLength(4);
+  expect(extension.records.filter(r => r.kind === 'original')).toHaveLength(6);
 });
 
 test('real 403 response path offers explicit local fallback with no retry', async ({ extension }) => {
@@ -55,13 +57,15 @@ test('independent official-reader/writer fixtures pass the actual worker and con
   for (const row of reference.rows) {
     extension.replies.set(0, {
       body: new Uint8Array(readFileSync(new URL(`../reference/fixtures/${row.file}`, import.meta.url))),
-      mime: row.format === 'jpeg' ? 'image/jpeg' : 'image/png',
+      mime: `image/${row.format}`,
     });
     await driver.click(ui.scan);
     const marker = row.status === 'no-metadata' ? '対応範囲にメタデータなし' : row.status === 'unsupported-format' ? '未対応形式' : 'テキスト情報あり';
     await expect.poll(() => driver.summary()).toContain(`${marker} / ${row.format}`);
     if (row.generator !== 'unknown') expect(await driver.summary()).toContain(`メタデータから推定: ${row.generator}`);
-    if ('fields' in row) for (const value of Object.values(row.fields!)) expect(await driver.text(ui.result)).toContain(value);
+    // ComfyUI graphs are collapsed (rendered lazily); check their disclosure label instead of content.
+    if ('fields' in row) for (const [key, value] of Object.entries(row.fields!)) expect(await driver.text(ui.result)).toContain(key.startsWith('ComfyUI') ? key : value);
+    if ('stealth' in row && row.stealth === 'found') expect(await driver.text(ui.result)).toContain('stealth_pngcompデータあり');
     expect(await driver.text(ui.result)).not.toContain('NovelAI電子署名: 検証成功');
     await expect.poll(() => driver.disabled(ui.scan)).toBe(false);
   }

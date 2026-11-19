@@ -1,17 +1,41 @@
-# プライバシー説明
+# プライバシー説明 / Privacy
 
-2026-11-15 / 開発版0.1.0
+対象: 開発版 0.1.x（2026-11-19時点の実装）
 
-ユーザーが閲覧中のpixivで選んだ作品・ページ、または明示選択したローカルファイルだけを扱います。
+この拡張は、ユーザーが閲覧中のpixivで選んだ作品・ページ、またはユーザーが明示的に選んだローカルファイルだけを扱います。
 
-- 作品サムネイルに250msホバー/フォーカスすると、その作品のページ一覧APIへ同一オリジンの通常セッションでアクセスします。プレビューには安全なAPI縮小画像または元サムネイルを通常のimg要素で表示します。
-- Metadata / 元画像を検査を押したときだけ、APIから得た原寸URLへWorkerから1件リクエストし、端末内で解析します。Workerは認証情報・Refererを付けず、リダイレクトを追跡しません。画像表示の通信はブラウザの通常ポリシーに従います。
-- 接続先はpixiv/pximgだけです。通信先には通常の通信に伴うIPアドレス等が伝わります。Cookie・パスワード・認証トークンを読み出しません。
-- Prompt、RAW、生成設定、ローカル画像・ファイル名を外部サーバーへ送信しません。テレメトリー・広告SDK・追跡ライブラリなし。
-- hoverの一覧は最大24件/推定2 MiB、結果は最大8件/推定8 MiB、どちらも最長2分のタブ内メモリだけで保持します。SPA・BFCache・破棄で消去します。現在表示中の結果や従来パネルの結果は、次の検査・ページ変更まで保持する場合があります。原寸バイト列をキャッシュしません。localStorage・拡張ストレージ・ファイル・DBへの永続保存なし。
-- ローカル結果は表示作品と同じ画像だと仮定せず、作品結果キャッシュにも入れません。ブラウザの通常HTTP画像キャッシュは利用される場合があります。
-- コピーはクリック時だけです。正規化JSONにはRAWと対象URLまたはファイル名が含まれます。クリップボードの履歴・同期はOS/ブラウザ設定に従います。
-- 必要なhost permissionはwww.pixiv.netとi.pximg.netだけです。他サイト・履歴・Cookie・保存情報を読みません。
-- 一括巡回、原寸先読み、自動再試行、認証・年齢・hotlink・レート制限の回避なし。
+## 通信
 
-実pixiv・実Edgeの受入は未完了です。[TEST_STATUS.md](TEST_STATUS.md)
+| いつ | 何を | どこへ | 付加情報 |
+|---|---|---|---|
+| サムネイルに約250msホバー／フォーカス | その作品のページ一覧（`/ajax/illust/{id}/pages`） | www.pixiv.net | ブラウザの通常の同一オリジンセッション（拡張はCookieを読みません） |
+| プレビュー表示 | APIまたはページ上の縮小画像を通常の`<img>`で表示 | i.pximg.net | ブラウザの通常の画像表示と同じ |
+| **Metadata／元画像を検査**を押したとき | 表示中ページの原寸画像1枚 | i.pximg.net | 認証情報・Refererなし、リダイレクトは追跡しない |
+
+- 接続先はpixivとpximgだけです。通常の通信と同様、接続先にはIPアドレス等が伝わります。
+- 画像、Prompt、生成設定、RAW、ローカルファイルの内容やファイル名を外部へ送信しません。テレメトリー・広告・解析SDK・追跡ライブラリはありません。
+- 一覧の巡回、原寸の先読み、自動再試行、ログイン・年齢制限・ホットリンク制限・レート制限の回避は行いません。
+
+## 端末内の処理と保存
+
+- 画像の解析（PNGテキスト、Stealth、EXIF）はすべて端末内で行います。
+- ページ一覧（最大24件・推定2 MiB）と検査結果（最大8件・推定8 MiB）を、タブ内のメモリにだけ最長2分保持します。ページ移動・BFCache・タブを閉じたときに消去します。表示中の結果は、次の検査やページ移動まで画面に残る場合があります。
+- 原寸のバイト列はキャッシュしません。localStorage・拡張ストレージ・IndexedDB・ファイルへの保存はありません。
+- 画像表示ではブラウザの通常のHTTPキャッシュが使われる場合があります。
+- ローカルファイルの結果は、表示中の作品と同じ画像だと仮定せず、作品の結果キャッシュにも入れません。
+
+## 権限
+
+- API権限: なし（cookies / tabs / storage / webRequest などは要求しません）。
+- ホスト権限: `https://www.pixiv.net/*`（コンテンツスクリプトとタブURLの確認）、`https://i.pximg.net/*`（原寸画像の取得）。
+- 他のサイト、閲覧履歴、Cookie、保存されたパスワードは読みません。
+
+## クリップボード
+
+コピーはボタンを押したときだけです。「正規化JSONをコピー」にはRAWテキストと解析対象URL（またはファイル名）が含まれます。クリップボードの履歴・同期はOSとブラウザの設定に従います。
+
+## English
+
+The extension talks only to www.pixiv.net (page list on hover, using the browser's normal same-origin session) and i.pximg.net (preview images as ordinary `<img>`, and one original per explicit click, sent without credentials or Referer). All parsing is local. Nothing is uploaded, no telemetry exists, and nothing is persisted: results are kept in tab memory for at most two minutes. It requests no API permissions and no hosts other than these two, and it never reads cookies, history or passwords.
+
+Contact: see [SECURITY.md](../SECURITY.md).

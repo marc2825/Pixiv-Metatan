@@ -1,13 +1,22 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "mode": "local-official-reference",
-  "images": "synthetic-1x1-generated-by-us",
+  "images": "synthetic-generated-by-us",
   "novelaiCommit": "3428907ac7183d7e36d7cc39e8f46f6f35ce99c1",
   "comfyCommit": "d07dff4565ea9804277fff8cdfa0c817e08c3d44",
+  "a1111Commit": "82a973c04367123ae98bd9abdf80d9eda9b910e2",
+  "novelaiApiSchema": {
+    "url": "https://image.novelai.net/docs/doc.json",
+    "sha256": "6c138b5980915a67cd90096b99979206372d184ba75afd86f2c3756730001415",
+    "used": "RequestParameters.v4_prompt / v4_negative_prompt -> V4ConditionInput (schema only; not executed)"
+  },
   "referenceSha256": {
     "nai_sig.py": "66716858e42c571987148e3d0e1218315ffe06fc821b7afc425956ed21d3c326",
     "nai_meta.py": "49fc35c2590fc63576a30d9394e45cb6ac41b372fe7ae6feb6ccb45cf418881c",
-    "comfy_nodes.py": "4cfd9be3754f9dc25213febdf96b690d6e32007c2e539d37e799d82226d758c5"
+    "nai_meta_writer.py": "252eb0efdd85a7cf3d7614de63026304eb7b9dd54a2da902e693ca82f8f1ecec",
+    "comfy_nodes.py": "4cfd9be3754f9dc25213febdf96b690d6e32007c2e539d37e799d82226d758c5",
+    "comfy_ui.py": "339cc100b45208f83f119ca76f48050bf723aea3377003357e8928a7ef85d025",
+    "a1111_images.py": "c1370f739d0ec64d2798a4ad3aab65cc191b817bba390f7f260129fd3ab40586"
   },
   "rows": [
     {
@@ -26,7 +35,8 @@
         "seed": "123",
         "steps": "28"
       },
-      "officialSignatureValid": null
+      "officialSignatureValid": null,
+      "stealth": "not-present"
     },
     {
       "file": "novelai-wrapped-comment.png",
@@ -44,7 +54,8 @@
         "seed": "123",
         "steps": "28"
       },
-      "officialSignatureValid": null
+      "officialSignatureValid": null,
+      "stealth": "not-present"
     },
     {
       "file": "novelai-invalid-signature.png",
@@ -62,7 +73,8 @@
         "seed": "123",
         "steps": "28"
       },
-      "officialSignatureValid": false
+      "officialSignatureValid": false,
+      "stealth": "not-present"
     },
     {
       "file": "no-metadata.png",
@@ -74,7 +86,7 @@
       "file": "synthetic.jpg",
       "generator": "unknown",
       "format": "jpeg",
-      "status": "unsupported-format"
+      "status": "no-metadata"
     },
     {
       "file": "comfy-saveimage.png",
@@ -84,12 +96,130 @@
       "chunks": {
         "prompt": "{\"1\": {\"class_type\": \"CLIPTextEncode\", \"inputs\": {\"text\": \"synthetic cat\", \"clip\": [\"2\", 1]}}, \"2\": {\"class_type\": \"CheckpointLoaderSimple\", \"inputs\": {\"ckpt_name\": \"synthetic-test-only\"}}}",
         "workflow": "{\"nodes\": [{\"id\": 1, \"type\": \"CLIPTextEncode\", \"widgets_values\": [\"synthetic cat\"]}], \"links\": []}"
+      },
+      "stealth": "not-present"
+    },
+    {
+      "file": "novelai-stealth-only.png",
+      "generator": "novelai",
+      "format": "png",
+      "status": "found",
+      "stealth": "found",
+      "officialStealthKeys": [
+        "Comment",
+        "Description",
+        "Software",
+        "Source"
+      ],
+      "fields": {
+        "prompt": "synthetic common prompt",
+        "negative": "synthetic negative",
+        "seed": "123",
+        "steps": "28",
+        "cfg rescale": "0.2",
+        "character 1 prompt": "synthetic character one",
+        "character 1 negative": "synthetic character one negative",
+        "character 1 position": "(0.3, 0.5)",
+        "character 2 prompt": "synthetic character two",
+        "character 2 position": "(0.7, 0.5)",
+        "model": "synthetic test model"
+      }
+    },
+    {
+      "file": "novelai-v4-text-and-stealth.png",
+      "generator": "novelai",
+      "format": "png",
+      "status": "found",
+      "stealth": "found",
+      "officialStealthKeys": [
+        "Comment",
+        "Description",
+        "Software",
+        "Source"
+      ],
+      "fields": {
+        "prompt": "synthetic common prompt",
+        "negative": "synthetic negative",
+        "seed": "123",
+        "steps": "28",
+        "cfg rescale": "0.2",
+        "character 1 prompt": "synthetic character one",
+        "character 1 negative": "synthetic character one negative",
+        "character 1 position": "(0.3, 0.5)",
+        "character 2 prompt": "synthetic character two",
+        "character 2 position": "(0.7, 0.5)",
+        "model": "synthetic test model"
+      },
+      "chunks": {
+        "Title": "AI generated image",
+        "Description": "synthetic common prompt",
+        "Software": "NovelAI",
+        "Source": "synthetic test model",
+        "Comment": "{\"prompt\": \"synthetic common prompt\", \"uc\": \"synthetic negative\", \"seed\": 123, \"steps\": 28, \"sampler\": \"k_euler\", \"scale\": 5, \"cfg_rescale\": 0.2, \"v4_prompt\": {\"caption\": {\"base_caption\": \"synthetic common prompt\", \"char_captions\": [{\"char_caption\": \"synthetic character one\", \"centers\": [{\"x\": 0.3, \"y\": 0.5}]}, {\"char_caption\": \"synthetic character two\", \"centers\": [{\"x\": 0.7, \"y\": 0.5}]}]}, \"use_coords\": true, \"use_order\": true}, \"v4_negative_prompt\": {\"caption\": {\"base_caption\": \"synthetic negative\", \"char_captions\": [{\"char_caption\": \"synthetic character one negative\", \"centers\": [{\"x\": 0.3, \"y\": 0.5}]}, {\"char_caption\": \"\", \"centers\": [{\"x\": 0.7, \"y\": 0.5}]}]}, \"legacy_uc\": false}}"
+      }
+    },
+    {
+      "file": "rgba-pattern-no-stealth.png",
+      "generator": "unknown",
+      "format": "png",
+      "status": "no-metadata",
+      "stealth": "not-present"
+    },
+    {
+      "file": "a1111-exif.jpg",
+      "generator": "a1111-forge",
+      "format": "jpeg",
+      "status": "found",
+      "exifUserComment": "synthetic prompt, line one\nsecond line\nNegative prompt: synthetic negative\nSteps: 20, Sampler: DPM++ 2M, Schedule type: Karras, CFG scale: 7, Seed: 42, Size: 8x8, Model: \"synthetic, model\", Clip skip: 2, Version: v1.10.1",
+      "fields": {
+        "prompt": "synthetic prompt, line one\nsecond line",
+        "negative": "synthetic negative",
+        "steps": "20",
+        "sampler": "DPM++ 2M",
+        "schedule type": "Karras",
+        "cfg": "7",
+        "seed": "42",
+        "size": "8x8",
+        "model": "synthetic, model",
+        "clip skip": "2",
+        "version": "v1.10.1"
+      }
+    },
+    {
+      "file": "a1111-exif.webp",
+      "generator": "a1111-forge",
+      "format": "webp",
+      "status": "found",
+      "exifUserComment": "synthetic prompt, line one\nsecond line\nNegative prompt: synthetic negative\nSteps: 20, Sampler: DPM++ 2M, Schedule type: Karras, CFG scale: 7, Seed: 42, Size: 8x8, Model: \"synthetic, model\", Clip skip: 2, Version: v1.10.1",
+      "fields": {
+        "prompt": "synthetic prompt, line one\nsecond line",
+        "negative": "synthetic negative",
+        "steps": "20",
+        "sampler": "DPM++ 2M",
+        "schedule type": "Karras",
+        "cfg": "7",
+        "seed": "42",
+        "size": "8x8",
+        "model": "synthetic, model",
+        "clip skip": "2",
+        "version": "v1.10.1"
+      }
+    },
+    {
+      "file": "comfy-exif.webp",
+      "generator": "comfyui",
+      "format": "webp",
+      "status": "found",
+      "fields": {
+        "ComfyUI API prompt JSON": "{\"1\": {\"class_type\": \"CLIPTextEncode\", \"inputs\": {\"text\": \"synthetic cat\", \"clip\": [\"2\", 1]}}, \"2\": {\"class_type\": \"CheckpointLoaderSimple\", \"inputs\": {\"ckpt_name\": \"synthetic-test-only\"}}}",
+        "ComfyUI workflow JSON": "{\"nodes\": [{\"id\": 1, \"type\": \"CLIPTextEncode\", \"widgets_values\": [\"synthetic cat\"]}], \"links\": []}"
       }
     }
   ],
   "limits": [
     "No real NovelAI generation or valid production signature",
     "No NovelAI cloud Inspect",
-    "Only official ComfyUI SaveImage class executed, not the ComfyUI server"
+    "V4 captions follow the official API schema, not a real NovelAI-generated image",
+    "Only unchanged upstream save/read functions executed, not the ComfyUI server or WebUI"
   ]
 }

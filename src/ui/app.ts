@@ -1,47 +1,37 @@
-import { InspectionError } from '../limits';
 import type { InspectionResult } from '../metadata/types';
-import { accessExplanation, localFallback } from '../network/failures';
+import { accessExplanation, Cooldown, cooldownResult, errorCode, errorDetail, localFallback, noteRateLimit } from '../network/failures';
 import type { CancelRequest, InspectRequest } from '../network/inspector';
 import { artworkIdFromUrl, getArtworkPages, type PixivPage } from '../pixiv/artworks';
 import { createPageStore } from '../pixiv/page-store';
 import { renderResult } from './result';
 import { mountHoverPreview } from './preview';
 import { inspectLocalFile } from './local-file';
+import { STYLES } from './styles';
 
 export interface AppDependencies {
   send: (message: InspectRequest | CancelRequest) => Promise<InspectionResult>;
   pages?: typeof getArtworkPages;
 }
-const fallback = '取得できない場合は、pixivで正規に保存できる元画像を「ローカルファイルを検査」で選択してください。';
 
 export function mountInspector(deps: AppDependencies): () => void {
   if (document.getElementById('pami-extension-root')) return () => {};
   const pageStore = createPageStore(deps.pages ?? getArtworkPages);
+  const cooldown = new Cooldown();
   const host = document.createElement('div'); host.id = 'pami-extension-root';
   const shadow = host.attachShadow({ mode: 'closed' });
-  const style = document.createElement('style');
-  style.textContent = `
-    :host{all:initial;color-scheme:light dark}
-    *{box-sizing:border-box} button,select,input{font:inherit} button,select,summary{cursor:pointer}
-    .toggle{position:fixed;right:16px;bottom:20px;z-index:2147483646;background:#202b3b;color:white;border:0;border-radius:999px;padding:12px 18px;font:600 13px system-ui;box-shadow:0 3px 20px #0004}
-    .panel{position:fixed;right:16px;bottom:76px;z-index:2147483646;width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 100px);overflow:auto;background:#fff;color:#172435;border:1px solid #bdc5d0;border-radius:14px;padding:16px;font:13px/1.5 system-ui;box-shadow:0 8px 30px #0004;overflow-wrap:anywhere}
-    [hidden]{display:none!important}.buttons{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-    button{padding:7px 10px;border:1px solid #8996a7;border-radius:8px;background:#fff;color:#172435}
-    button:disabled{opacity:.55;cursor:default} :focus-visible{outline:3px solid #1686ec;outline-offset:3px}
-    select{width:100%;padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef2f6;padding:8px;border-radius:6px;max-height:160px;overflow:auto}.metadata-settings{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px}.metadata-settings dt{font-weight:600}.metadata-settings dd{margin:0;white-space:pre-wrap}
-    h4{margin:12px 0 4px}details{margin:12px 0}summary{font-weight:600}h2{font-size:15px;margin:0}
-    @media(prefers-color-scheme:dark){.panel{background:#19222e;color:#edf1f7;border-color:#66748a}button,select{background:#263448;color:#edf1f7}pre{background:#0f1823}}
-  `;
-  const button = (label: string) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; return b; };
-  const toggle = button('AI Metadata'); toggle.className = 'toggle'; toggle.setAttribute('aria-controls', 'pami-panel'); toggle.setAttribute('aria-expanded', 'false');
+  const style = document.createElement('style'); style.textContent = STYLES;
+  const button = (label: string, className = '') => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (className) b.className = className; return b; };
+  const toggle = button('AI Metadata', 'toggle'); toggle.setAttribute('aria-controls', 'pami-panel'); toggle.setAttribute('aria-expanded', 'false');
   const panel = document.createElement('section'); panel.id = 'pami-panel'; panel.className = 'panel'; panel.hidden = true; panel.setAttribute('aria-labelledby', 'pami-title');
+  panel.tabIndex = -1; // focus target when the focused control becomes disabled mid-operation
   const title = document.createElement('h2'); title.id = 'pami-title'; title.textContent = 'pixiv AI Metadata Inspector';
-  const intro = document.createElement('p'); intro.textContent = `選択した1枚だけを検査します。画像・結果は外部送信・保存しません。${fallback}`;
+  const intro = document.createElement('p'); intro.className = 'intro';
+  intro.textContent = '選んだ1枚だけを、押したときに検査します。画像・結果は外部へ送信・保存しません。原寸を取得できない場合はローカルファイルを検査できます。';
   const label = document.createElement('label'); label.textContent = '検査する画像'; label.htmlFor = 'pami-pages';
   const select = document.createElement('select'); select.id = 'pami-pages';
   const buttons = document.createElement('div'); buttons.className = 'buttons';
   const refresh = button('画像一覧を取得');
-  const scan = button('元画像を検査');
+  const scan = button('元画像を検査', 'primary');
   const fileButton = button('ローカルファイルを検査');
   const cancel = button('取り消し');
   const close = button('閉じる');
@@ -61,14 +51,18 @@ export function mountInspector(deps: AppDependencies): () => void {
   let operation: { id: string; controller: AbortController; remote: boolean } | undefined;
   let fileContext: { version: number; artworkId: string | null } | undefined;
 
+  const selectedPage = () => pages.find(item => String(item.page) === select.value);
   const controls = () => {
+    const focused = shadow.activeElement;
     toggle.hidden = artworkId === null;
     if (toggle.hidden) { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-    scan.disabled = !artworkId || !pages.length || !!operation || !!listing;
+    scan.disabled = !artworkId || !selectedPage()?.original || !!operation || !!listing;
     select.disabled = !pages.length || !!listing;
     refresh.disabled = !!operation || !!listing;
     fileButton.disabled = !!operation;
     cancel.disabled = !operation && !listing;
+    // A disabled button drops focus to <body>; keep keyboard users inside the panel instead.
+    if (focused instanceof HTMLButtonElement && focused.disabled && !panel.hidden) panel.focus({ preventScroll: true });
   };
   const cancelPending = () => {
     version++;
@@ -90,15 +84,19 @@ export function mountInspector(deps: AppDependencies): () => void {
     navigation();
     return !disposed && !panel.hidden && version === token && artworkId === id;
   };
-  const hide = () => { cancelPending(); panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); };
+  // Take over Escape only when focus is in our UI (or nowhere); otherwise let pixiv handle it too.
+  const focusedHere = () => document.activeElement === host || document.activeElement === document.body || !document.activeElement;
+  const hide = () => { const returnFocus = focusedHere(); cancelPending(); panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); if (returnFocus) toggle.focus(); };
   const options = () => {
     const previous = select.value;
     select.replaceChildren(...pages.map(page => {
       const option = document.createElement('option'); option.value = String(page.page);
-      option.textContent = `${page.page + 1}枚目（元画像）${inspected.has(page.page) ? '・検査済み' : ''}`;
+      option.textContent = `${page.page + 1}枚目${page.original ? '（元画像）' : '（検査対象外の形式）'}${inspected.has(page.page) ? '・検査済み' : ''}`;
+      option.disabled = !page.original;
       return option;
     }));
     if (pages.some(page => String(page.page) === previous)) select.value = previous;
+    else { const first = pages.find(page => page.original); if (first) select.value = String(first.page); }
   };
   async function populate() {
     navigation();
@@ -110,9 +108,10 @@ export function mountInspector(deps: AppDependencies): () => void {
       const next = await pageStore.load(id, controller.signal);
       if (!current(token, id)) return;
       pages = next; loaded = true; options();
-      status.textContent = `${pages.length}枚。対象を選び「元画像を検査」を押してください。`;
+      const skipped = pages.filter(page => !page.original).length;
+      status.textContent = `${pages.length}枚。対象を選び「元画像を検査」を押してください。${skipped ? `${skipped}枚は検査対象外の形式（GIF・うごイラ等の可能性）です。` : ''}`;
     } catch (error) {
-      if (current(token, id)) status.textContent = `作品情報を取得できませんでした。${accessExplanation(error instanceof InspectionError ? error.code : 'network-error', 'pages')} ${localFallback}`;
+      if (current(token, id)) status.textContent = `${accessExplanation(errorCode(error), 'pages', errorDetail(error))} ${localFallback}`;
     } finally {
       if (listing === controller) listing = undefined;
       controls();
@@ -125,10 +124,12 @@ export function mountInspector(deps: AppDependencies): () => void {
     panel.hidden = false; toggle.setAttribute('aria-expanded', 'true');
     fileButton.focus(); if (!loaded) void populate();
   });
-  close.addEventListener('click', hide);
+  close.addEventListener('click', () => { hide(); toggle.focus(); });
   // Disabling the focused Inspect button can move focus outside the shadow root.
   const escape = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && !panel.hidden) { event.preventDefault(); event.stopPropagation(); hide(); }
+    if (event.key !== 'Escape' || panel.hidden) return;
+    if (focusedHere()) { event.preventDefault(); event.stopPropagation(); }
+    hide();
   };
   document.addEventListener('keydown', escape, true);
   refresh.addEventListener('click', () => void populate());
@@ -136,18 +137,23 @@ export function mountInspector(deps: AppDependencies): () => void {
   select.addEventListener('change', () => { cancelPending(); output.replaceChildren(); status.textContent = '選択した画像を検査できます。'; });
   scan.addEventListener('click', () => void (async () => {
     navigation();
-    const page = pages.find(item => String(item.page) === select.value);
-    if (!artworkId || !page || operation || listing) return;
+    const page = selectedPage();
+    if (!artworkId || !page?.original || operation || listing) return;
     const id = artworkId, token = ++version;
+    const wait = cooldown.remaining();
+    if (wait) { renderResult(output, cooldownResult(wait)); status.textContent = '原寸の取得は待機中です。'; return; }
     const op = { id: crypto.randomUUID(), controller: new AbortController(), remote: true };
     operation = op; controls(); output.replaceChildren(); status.textContent = '元画像を検査中…';
     try {
-      const result = await deps.send({ type: 'INSPECT_PIXIV_IMAGE', requestId: op.id, artworkId: id, page: page.page, url: page.original, contextUrl: location.href });
+      // Artwork-page requests are bound to the artwork ID (the worker re-checks the live tab),
+      // so a hash/query change on the same artwork does not cancel them.
+      const result = await deps.send({ type: 'INSPECT_PIXIV_IMAGE', requestId: op.id, artworkId: id, page: page.page, url: page.original });
+      noteRateLimit(cooldown, result);
       if (!current(token, id)) return;
       renderResult(output, result); status.textContent = '検査結果を表示しました。';
       if (result.status === 'found' || result.status === 'no-metadata') { inspected.add(page.page); options(); }
     } catch {
-      if (current(token, id)) status.textContent = `拡張機能との通信に失敗しました。${fallback}`;
+      if (current(token, id)) status.textContent = `拡張機能との通信に失敗しました（拡張の更新・再読み込み後はページを再読み込みしてください）。${localFallback}`;
     } finally { if (operation === op) operation = undefined; controls(); }
   })());
   fileButton.addEventListener('click', () => {
@@ -166,15 +172,25 @@ export function mountInspector(deps: AppDependencies): () => void {
       const result = await inspectLocalFile(selected, op.controller.signal);
       if (current(token, id)) {
         renderResult(output, result);
-        status.textContent = 'ローカルファイルの検査結果を表示しました。';
+        status.textContent = 'ローカルファイルの検査結果です（表示中の作品と同じ画像かは確認していません）。';
       }
     } finally { file.value = ''; if (operation === op) operation = undefined; controls(); }
   })());
   const hover = mountHoverPreview(shadow, deps, () => {
     cancelPending(); panel.hidden = true; toggle.setAttribute('aria-expanded', 'false');
-  }, pageStore);
-  // URL observation only: no automatic endpoint or image requests on navigation.
-  const watch = window.setInterval(() => { if (!host.isConnected) destroy(); else navigation(); }, 300);
+  }, pageStore, cooldown);
+  // One shared ticker for both UIs: URL observation, cache expiry and target liveness only.
+  // It never requests endpoints or images. Hidden tabs are throttled by the browser.
+  const tick = () => {
+    if (disposed) return;
+    // Some SPA frameworks remove unknown nodes; re-attach instead of silently disappearing.
+    if (!host.isConnected && document.documentElement) document.documentElement.append(host);
+    navigation(); hover.tick();
+  };
+  const watch = window.setInterval(tick, 300);
+  const navigationApi = (window as { navigation?: EventTarget }).navigation;
+  navigationApi?.addEventListener('currententrychange', tick);
+  document.addEventListener('visibilitychange', tick);
   const pageHide = (event: PageTransitionEvent) => {
     if (!event.persisted) { destroy(); return; }
     // Keep the UI mount for BFCache restore, but discard results and pending work.
@@ -185,6 +201,8 @@ export function mountInspector(deps: AppDependencies): () => void {
   const destroy = () => {
     if (disposed) return;
     disposed = true; cancelPending(); hover.destroy(); window.clearInterval(watch);
+    navigationApi?.removeEventListener('currententrychange', tick);
+    document.removeEventListener('visibilitychange', tick);
     document.removeEventListener('keydown', escape, true); window.removeEventListener('pagehide', pageHide); host.remove();
   };
   window.addEventListener('pagehide', pageHide);

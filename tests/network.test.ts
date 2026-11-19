@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InspectionError, MAX_IMAGE_BYTES, readBounded } from '../src/limits';
 import { createInspector, type InspectRequest, type Sender } from '../src/network/inspector';
-import { originalUrl, pngWithText, png } from './fixtures';
+import { jpeg as jpegFile, originalUrl, pngWithText, png } from './fixtures';
 
 const sender: Sender = { id: 'extension', frameId: 0, url: 'https://www.pixiv.net/artworks/123', tab: { id: 7 } };
 const request: InspectRequest = { type: 'INSPECT_PIXIV_IMAGE', requestId: 'test-1', artworkId: '123', page: 0, url: originalUrl() };
@@ -109,8 +109,10 @@ describe('privileged worker boundary', () => {
     const jpeg = new Uint8Array([255, 216, 255, 224]);
     const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response(jpeg, { headers: { 'content-type': 'image/png' } })));
     expect((await worker.handle(request, sender))?.notes[0]).toContain('content-type-mismatch');
-    const converted = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response(jpeg, { headers: { 'content-type': 'image/jpeg' } })));
-    const result = await converted.handle(request, sender); expect(result?.format).toBe('jpeg'); expect(result?.status).toBe('unsupported-format');
+    // A server-side JPEG conversion is identified as JPEG; metadata absence is not treated as evidence.
+    const converted = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response(jpegFile(), { headers: { 'content-type': 'image/jpeg' } })));
+    const result = await converted.handle(request, sender); expect(result?.format).toBe('jpeg'); expect(result?.status).toBe('no-metadata');
+    expect(result?.notes.join(' ')).toContain('人間が描いた証拠になりません');
   });
   it('rejects redirects and network errors without retrying', async () => {
     const worker = setup(vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch')));
@@ -152,5 +154,33 @@ describe('privileged worker boundary', () => {
     expect((await worker.handle(request, sender))?.notes[0]).toContain('タイムアウト');
     fetcher.mockRejectedValue(new InspectionError('http-403'));
     expect((await worker.handle(request, sender))?.notes[0]).toContain('http-403');
+  });
+});
+
+describe('structured worker failures', () => {
+  it('returns the remaining 429 wait time so the tab can keep its own cooldown', async () => {
+    const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 429, headers: { 'retry-after': '120' } })));
+    const first = await worker.handle(request, sender);
+    expect(first?.error).toMatchObject({ layer: 'original', code: 'http-429' });
+    expect(first?.error?.retryAfterMs).toBeGreaterThan(119_000);
+    const blocked = await worker.handle({ ...request, requestId: 'again' }, sender);
+    expect(blocked?.error?.retryAfterMs).toBeGreaterThan(0); expect(blocked?.notes[0]).toContain('再取得しません');
+  });
+  it('explains a 403 from the measured Referer behaviour, offers the local route and never retries', async () => {
+    const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 403 })));
+    const result = await worker.handle(request, sender);
+    expect(result).toMatchObject({ status: 'access-denied', error: { layer: 'original', code: 'http-403' } });
+    expect(result?.error?.retryAfterMs).toBeUndefined();
+    expect(result?.notes.join(' ')).toContain('Refererのない取得を拒否'); expect(result?.notes.join(' ')).toContain('ローカルファイルを検査');
+    expect(worker.fetcher).toHaveBeenCalledOnce();
+    expect(worker.fetcher.mock.calls[0]?.[1]).toMatchObject({ credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error' });
+  });
+  it('accepts an artwork-bound request after a hash-only change on the same artwork', async () => {
+    const worker = setup(); worker.tabUrl.mockResolvedValue('https://www.pixiv.net/artworks/123#comments');
+    expect((await worker.handle(request, sender))?.status).toBe('found');
+  });
+  it('classifies oversized originals as a safety limit, not a server denial', async () => {
+    const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response(new Uint8Array(8), { headers: { 'content-type': 'image/png', 'content-length': String(MAX_IMAGE_BYTES + 1) } })));
+    expect(await worker.handle(request, sender)).toMatchObject({ status: 'too-large', error: { code: 'too-large' } });
   });
 });

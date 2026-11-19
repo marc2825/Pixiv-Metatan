@@ -61,8 +61,19 @@ async function resultSummary(driver: InspectorDriver): Promise<string> {
 }
 async function run(page: Page) {
   const response = await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-  evidence.checks.document = { result: response?.ok() ? 'PASS' : 'FAIL', status: response?.status(), mime: response?.headers()['content-type'] };
-  if (!response?.ok()) { evidence.notes.push('Document denied or unavailable. No retry, API request, original request or bypass was attempted.'); return; }
+  const headers = response?.headers() ?? {};
+  // Classify only from response headers. A bot challenge is recorded, never solved or evaded.
+  const challenge = headers['cf-mitigated'] === 'challenge';
+  evidence.checks.document = {
+    result: response?.ok() ? 'PASS' : 'FAIL', status: response?.status(), mime: headers['content-type'],
+    ...(challenge ? { reason: 'cloudflare-managed-challenge' } : {}),
+  };
+  if (!response?.ok()) {
+    evidence.notes.push(challenge
+      ? 'Document returned a Cloudflare managed challenge (cf-mitigated: challenge) to this automated browser profile. It was not solved or evaded; use the manual GUI procedure in a normal browser.'
+      : 'Document denied or unavailable. No retry, API request, original request or bypass was attempted.');
+    return;
+  }
   const driver = await InspectorDriver.create(context!, page);
   evidence.checks.injection = { result: 'PASS', reason: 'production-closed-shadow-root' };
   if (!artwork) { evidence.notes.push('Connectivity only. No artwork or original selected.'); return; }
