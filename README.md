@@ -35,7 +35,7 @@ Prompt / Negative / Seed / Steps / Sampler / CFG / Model などを、記録さ�
 
 ## インストール（開発版）
 
-Node.js 22以降が必要です。
+Node.js 22.22.2以降の22系、24.15以降の24系、または26以降が必要です（試験用のjsdomの要件）。
 
 ```bash
 npm ci

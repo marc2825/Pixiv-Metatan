@@ -2,7 +2,14 @@
 
 All notable changes. Dates are JST. The project is unreleased; the version stays 0.1.0 until the first release.
 
-## [Unreleased] — 2026-11-19 audit
+## [Unreleased]
+
+### Maintenance — 2026-11-19
+- First GitHub Actions run green on Node 22/24, including the Playwright job.
+- Merged Dependabot updates: actions/checkout, setup-node and upload-artifact v7 (clears the Node.js 20 deprecation warning); TypeScript 7.0.2 (same diagnostics as 5.9.3 on a strictness probe); jsdom 31.0.1; Playwright 1.65.1, Vite 8.3.8, Vitest 5.1.0, WXT 0.21.5, @types/node 26.6.6.
+- `engines.node` narrowed to `^22.22.2 || ^24.15.0 || >=26.0.0` to match jsdom 31.
+
+## 2026-11-19 audit
 
 ### Diagnosis
 - Isolated the live failure layers with measurements ([evidence](docs/evidence/live-layers-2026-11-19.json)): the headless-browser document 403 is a Cloudflare managed challenge (`cf-mitigated: challenge`). i.pximg.net rejects the worker's referer-less original requests with 403; the pages API works. Decision: keep the worker's no-credential/no-referrer fetch, do not work around it, and make the local-file path the documented route.

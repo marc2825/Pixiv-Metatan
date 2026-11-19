@@ -42,7 +42,7 @@
 
 ### 7. 公開準備 — `release`
 - GitHubのprivate vulnerability reportingを有効化。
-- CIの`browser`ジョブがGitHub-hosted runnerで安定することを確認し、必要なら必須チェックにする。
+- CIの`browser`ジョブはGitHub-hosted runnerで成功済み（2026-11-19）。数回安定したら必須チェックにする。
 - Chrome Web Store: 公開プライバシーポリシーURL、ストア用スクリーンショット（合成）、単一目的の説明、権限の説明、名称に含まれる第三者商標（pixiv）の扱いの確認、pixiv規約の確認。
 
 ### 8. 英語UI — `i18n`

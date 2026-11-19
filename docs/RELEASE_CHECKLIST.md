@@ -13,7 +13,7 @@ Status 2026-11-19: **source publication: conditional GO; packaged release and Ch
 
 ## Before publishing the source on GitHub
 - [ ] Enable GitHub private vulnerability reporting (Settings → Code security).
-- [ ] Confirm the CI workflow runs green on GitHub (the `browser` job is not yet observed on hosted runners; keep it non-required until it is stable).
+- [x] CI runs green on GitHub (first run 2026-11-19, including the Playwright job). Make the `browser` job a required check after it has stayed stable over more runs.
 
 ## Before a packaged release (GitHub Releases)
 - [ ] Manual live acceptance in a normal Chrome on owner-controlled or legitimately viewable artwork ([MANUAL_TESTS.md](MANUAL_TESTS.md) items 1–8), logged out and logged in.
