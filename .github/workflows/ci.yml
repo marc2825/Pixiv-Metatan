@@ -37,8 +37,8 @@ jobs:
       - name: Manifest permissions guard
         run: npm run check:manifest
 
-  # Synthetic browser suites (no real pixiv traffic). Not yet observed on GitHub-hosted runners,
-  # so keep this job out of required status checks until it has proven stable there.
+  # Synthetic browser suites (no real pixiv traffic). Green on GitHub-hosted runners since
+  # 2026-11-19; make it a required status check once it has stayed stable over more runs.
   browser:
     name: Playwright synthetic UI and production MV3 suites
     needs: verify
