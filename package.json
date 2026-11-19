@@ -22,13 +22,13 @@
     "fixtures:reference": "python3 scripts/reference-fixtures.py"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1",
-    "@types/node": "26.6.5",
+    "@playwright/test": "1.65.1",
+    "@types/node": "26.6.6",
     "jsdom": "29.1.1",
     "typescript": "5.9.3",
-    "vite": "8.3.5",
-    "vitest": "5.0.5",
-    "wxt": "0.21.4"
+    "vite": "8.3.8",
+    "vitest": "5.1.0",
+    "wxt": "0.21.5"
   },
   "engines": {
     "node": ">=22"
