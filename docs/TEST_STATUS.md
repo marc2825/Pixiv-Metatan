@@ -7,7 +7,7 @@
 | Command | Result | Scope |
 |---|---|---|
 | `npm run typecheck` | PASS | WXT prepare + TypeScript strict (src, entrypoints, tests, scripts) |
-| `npm test` | PASS — 10 files / 279 tests | Parsers, 12 upstream-verified reference fixtures, URL/authorisation, worker, DOM races, caches, wheel, UI rendering (191 tests before this audit, all kept) |
+| `npm test` | PASS — 11 files / 355 tests | Parsers, 12 upstream-verified reference fixtures, URL/authorisation, worker, DOM races, caches, wheel, UI rendering, static security guards and adversarial inputs (191 tests before the 2026-11-19 audit, all kept) |
 | `npm run build` | PASS | Chrome MV3, 96.63 kB (background 29.1 kB, content 61.7 kB, icons) |
 | `npm run build:edge` | PASS | Edge MV3, same size. A build, not a run in real Edge |
 | `npm run check:manifest` | PASS | Chrome/Edge: no API permissions; hosts pixiv/pximg only; top-frame isolated script |
@@ -53,10 +53,23 @@ Test-assertion changes in this audit only followed intended behaviour changes (J
 
 Linux x64 (WSL2), Node 24.21.0, npm 11.19.0, Chromium 156.0.8078.4. Re-run on 2026-11-19 after the Dependabot updates (TypeScript 7.0.2, jsdom 31.0.1, Playwright 1.65.1, Vite 8.3.8, Vitest 5.1.0, WXT 0.21.5): typecheck, 279 Vitest tests, both builds, the manifest guard, 12 browser and 17 production MV3 tests all pass. TypeScript 7.0.2 reported the same diagnostics as 5.9.3 on a probe file of deliberate strictness violations. Chromium's missing system libraries (NSS, ALSA) were extracted to a temporary directory for this run only; nothing was installed into the OS or repository. On a normal machine use `npx playwright install --with-deps chromium`. Temporary browser profiles were deleted after each run; no existing user profile was used.
 
-## 公開判定
+## Pre-publication audit (2026-11-21)
+
+| Scope | Method | Result |
+|---|---|---|
+| All commits and refs incl. GitHub PR refs (19 commits) | gitleaks 8.30.1 (`git --log-opts=--all`, redacted) | No findings |
+| Every blob ever committed (223, incl. deleted files and binaries) | Custom patterns: private keys, GitHub/AWS/Slack/Google/npm/JWT tokens, cookie/auth headers, pixiv session names, env secrets, home paths, private IPs, hostnames, real pximg URLs, artwork IDs | No credentials. Older versions of `docs/TEST_STATUS.md` (now replaced) contained a local home path and temporary directories: harmless, history not rewritten |
+| Image metadata in history (screenshots, icons, fixtures) | Decoded PNG text, EXIF and WebP chunks | Synthetic test values only; screenshots carry no metadata |
+| Commit identities | `git log --all` | Author email of the maintainer (acceptable by decision) and GitHub noreply addresses |
+| GitHub Actions logs (27 runs) and artifacts (15) | Downloaded and scanned | Only GitHub's own masked job tokens (`***`) and runner paths. One raw Playwright report artifact contains the commit author email, which is acceptable; artifacts are now limited to sanitized evidence |
+| PR bodies and comments (#1–#7) | API export, pattern scan | Dependabot release notes and maintainer comments only |
+| Current tracked files | Same patterns, plus tracked-but-ignored check | No local paths, credentials or private data; no tracked file matches `.gitignore` |
+| Dependency licenses | `package-lock.json` license fields; bundle inspection | Permissive dev tooling (MPL-2.0 `lightningcss` build-time only); bundle contains only project code and WXT runtime (MIT) |
+
+## 公開判定 (2026-11-21)
 
 | 対象 | 判定 | 根拠 |
 |---|---|---|
-| GitHubでのソース公開 | CONDITIONAL GO | 秘密情報・第三者画像・個人のローカルパスなし。ライセンス・文書・試験あり。GitHub上のCIは成功済み。残る条件: private vulnerability reportingの有効化（リポジトリ設定） |
+| GitHubでのソース公開 | CONDITIONAL GO | 認証情報の漏洩なし（全履歴・CIログ・Artifact・PR本文を確認）。ライセンス・第三者表記・セキュリティ方針・CIあり。条件: 公開前整備のPRをCI成功のうえでマージすること。公開直後にGitHub設定（private vulnerability reporting等、[RELEASE_CHECKLIST](RELEASE_CHECKLIST.md#right-after-switching-to-public-github-settings)）を行う |
 | GitHub Releasesでの配布 | NO-GO | 実タブでのホバー・一覧検出が未確認。Metadataは実pixivで403になる想定。手動受入（MANUAL_TESTS 1〜8）後に、制限を明記したプレリリースとして再判定 |
 | Chrome Web Store | NO-GO | 上記に加え、プライバシーポリシーURL・ストア素材・名称（第三者商標）・pixiv規約の確認が未了。主要機能（原寸取得）が方針により実pixivで動作しない |

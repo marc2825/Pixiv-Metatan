@@ -66,4 +66,9 @@ describe('thumbnail detection fixtures (synthetic pixiv-like DOM)', () => {
     const found = thumbnailFromTarget(document.getElementById('a'))!;
     expect(found.title).toHaveLength(300); expect(found.author).toHaveLength(160);
   });
+  it.each(['javascript:alert(1)//artworks/123', 'data:text/html,<a href=/artworks/123>', 'blob:https://www.pixiv.net/artworks/123'])('ignores non-https artwork-looking links %s', href => {
+    const anchor = document.createElement('a'); anchor.id = 'x'; anchor.setAttribute('href', href);
+    const img = document.createElement('img'); img.src = square(); anchor.append(img); document.body.append(anchor);
+    expect(thumbnailFromTarget(document.getElementById('x'))).toBeUndefined();
+  });
 });

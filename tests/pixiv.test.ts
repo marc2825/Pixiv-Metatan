@@ -123,3 +123,23 @@ describe('page listing robustness and precise pixiv errors', () => {
     expect(accessExplanation('pixiv-pages-timeout', 'pages')).toContain('タイムアウト');
   });
 });
+
+describe('URL canonicalisation attacks (no SSRF-style escape from the allowlist)', () => {
+  const tricks = (url: string) => [
+    url.replace('i.pximg.net', 'I.PXIMG.NET'), url.replace('i.pximg.net', 'i.pximg.net.'), url.replace('i.pximg.net', 'i．pximg．net'),
+    url.replace('https://', 'https:\\\\'), url.replace('https://i.pximg.net/', 'https://i.pximg.net//'), url.replace('/img/', '/img%2F'),
+    url.replace('123_p0', '12\t3_p0'), url.replace('123_p0', '12\n3_p0'), url.replace('https://i.pximg.net', 'https://i.pximg.net@evil.example'),
+    url.replace('https://i.pximg.net', 'https://evil.example#i.pximg.net'), url.replace('https://i.pximg.net', 'https://[::1]'), url.replace('https://i.pximg.net', 'https://127.0.0.1'),
+    url.replace('https://i.pximg.net', 'blob:https://i.pximg.net'), url.replace('https://i.pximg.net', 'filesystem:https://i.pximg.net'), ` ${url}`, `${url} `,
+  ];
+  it.each(tricks(originalUrl()))('worker original validator rejects %j', url => expect(() => validatePixivImageUrl(url, '123', 0)).toThrow());
+  it.each(tricks(previewUrl()))('display validator rejects %j', url => expect(() => validatePreviewUrl(url, '123', 0)).toThrow());
+  it.each(['javascript:alert(1)//www.pixiv.net/artworks/123', 'https://www.pixiv.net@evil.example/artworks/123', 'https://evil.example/https://www.pixiv.net/artworks/123', 'https://www.pixiv.net.evil.example/artworks/123', 'https://www.pixiv.net:8443/artworks/123'])('artwork links cannot be spoofed: %s', url => {
+    expect(artworkIdFromUrl(url)).toBeNull();
+  });
+  it('never builds a request URL from anything but a validated numeric ID', async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    for (const id of ['../1', '1/../../x', '1?x=1', '01', '1e3', ' 1', '123456789012345678901']) await expect(getArtworkPages(id, undefined, fetcher)).rejects.toThrow('invalid-artwork-id');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});

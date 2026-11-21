@@ -143,4 +143,11 @@ describe('untrusted display and explicit clipboard access', () => {
     find('Promptをコピー').click(); expect(writeText.mock.calls.at(-1)![0]).toBe('line 1\nline 2');
     writeText.mockRejectedValue(new Error('denied')); find('結果をコピー').click(); await vi.waitFor(() => expect(container.textContent).toContain('コピーが許可されませんでした'));
   });
+  it('renders worker results after JSON transport without prototype pollution or markup', () => {
+    const container = document.createElement('div');
+    const wire = JSON.parse(JSON.stringify({ ...emptyResult('found', [], 'png'), fields: { prompt: '<b>x</b>' }, textEntries: [{ keyword: '__proto__', value: '{"polluted":true}', kind: 'tEXt' }] }).replace('"fields":{', '"fields":{"__proto__":{"polluted":true},'));
+    renderResult(container, wire);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(container.querySelector('b')).toBeNull(); expect(container.textContent).toContain('<b>x</b>');
+  });
 });

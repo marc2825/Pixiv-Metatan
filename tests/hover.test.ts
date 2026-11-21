@@ -200,4 +200,15 @@ describe('delegated hover preview', () => {
     expect(document.getElementById('pami-extension-root')?.isConnected).toBe(true);
     await open(card()); expect(panel().hidden).toBe(false);
   });
+  it('renders hostile titles and author names from the page as text only', async () => {
+    const attack = '<img src=x onerror=alert(1)><script>alert(2)</script>';
+    const item = document.createElement('li'), anchor = card(); anchor.querySelector('img')!.alt = attack;
+    const author = document.createElement('a'); author.href = '/users/9'; author.textContent = attack;
+    item.append(anchor, author); document.body.append(item);
+    mount(); await open(anchor);
+    expect(panel().querySelector('h2')?.textContent).toBe(attack); expect(panel().querySelector('.hover-author')?.textContent).toBe(attack);
+    expect(panel().querySelectorAll('script')).toHaveLength(0);
+    expect([...panel().querySelectorAll('img')].map(img => img.className)).toEqual(['preview-image']);
+    expect(panel().querySelector<HTMLAnchorElement>('.hover-meta a')?.href).toBe('https://www.pixiv.net/artworks/123');
+  });
 });

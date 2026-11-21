@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only token for every job. No secrets are used. `pull_request` (not `pull_request_target`)
+# keeps fork PRs on a read-only token without access to repository secrets.
 permissions:
   contents: read
 
@@ -22,10 +24,10 @@ jobs:
       matrix:
         node: [22, 24]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -37,6 +39,42 @@ jobs:
       - name: Manifest permissions guard
         run: npm run check:manifest
 
+  dependency-audit:
+    name: npm audit (high and critical)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm audit --audit-level=high
+
+  secret-scan:
+    name: Secret scan (gitleaks, full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      # SHA-256 of gitleaks_8.30.1_linux_x64.tar.gz from the release's checksums file.
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned gitleaks binary
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$archive"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan git history (findings are redacted)
+        run: |
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --verbose .
+
   # Synthetic browser suites (no real pixiv traffic). Green on GitHub-hosted runners since
   # 2026-11-19; make it a required status check once it has stayed stable over more runs.
   browser:
@@ -45,10 +83,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -56,11 +94,15 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:extension
+      # Upload only the sanitized evidence (kinds, status/MIME, page numbers, build hashes).
+      # The raw Playwright report contains runner paths and git commit metadata.
+      - name: Export sanitized synthetic evidence
+        if: always() && hashFiles('.verification/extension-report.json') != ''
+        run: node scripts/export-synthetic-evidence.mjs .verification/synthetic-evidence.json
       - name: Upload sanitized synthetic evidence
-        if: always()
-        uses: actions/upload-artifact@v7
+        if: always() && hashFiles('.verification/synthetic-evidence.json') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: synthetic-mv3-report
-          path: .verification/extension-report.json
-          if-no-files-found: ignore
+          name: synthetic-mv3-evidence
+          path: .verification/synthetic-evidence.json
           retention-days: 14

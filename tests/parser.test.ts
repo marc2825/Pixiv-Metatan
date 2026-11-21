@@ -150,4 +150,11 @@ describe('evidence and normalization', () => {
     expect(parseParameters('a sentence with Steps: 20, Sampler: X')).toEqual({});
     expect(parseParameters('p\nSteps: 5')).toEqual({ prompt: 'p', steps: '5' });
   });
+  it('parses pathological A1111/JSON text in linear time (no ReDoS)', () => {
+    const quotes = 'p\nSteps: 1, Model: "' + '\\\"'.repeat(200_000) + '"';
+    const start = performance.now();
+    parseParameters(quotes); parseParameters('Negative prompt:'.repeat(50_000) + '\nSteps: 1'); parseParameters(','.repeat(1_000_000));
+    expect(() => parseMetadataJson('"' + '\\'.repeat(500_000) + '"')).not.toThrow();
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
 });

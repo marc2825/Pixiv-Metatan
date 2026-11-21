@@ -1,13 +1,52 @@
+# Dependencies and build output
 node_modules/
 .output/
 .wxt/
 coverage/
+*.tsbuildinfo
+
+# Test and verification output (may contain local paths, traces or browser state)
 .test-browser/
 .verification/
 test-results/
 playwright-report/
-*.log
-.DS_Store
+blob-report/
+playwright/.auth/
+playwright/.cache/
+*.trace.zip
+trace.zip
+*storage-state*.json
+*storageState*.json
+*.har
+
+# Browser profiles and downloads
+.profiles/
+user-data-dir/
+*-profile/
+downloads/
+
+# Secrets and signing material (never commit; the extension needs none)
 .env
 .env.*
 !.env.example
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.crx
+credentials*.json
+secrets*.json
+
+# Local reference-fixture environments (see tests/reference/README.md)
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Logs, temporary files and OS metadata
+*.log
+*.tmp
+tmp/
+.DS_Store
+Thumbs.db
