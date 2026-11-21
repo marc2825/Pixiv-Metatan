@@ -84,17 +84,23 @@ npm run test:browser      # 合成ページでのUI試験
 npm run test:extension    # 本番MV3ビルドを使い捨てプロファイルで試験（通信はすべて合成）
 ```
 
-LinuxではPlaywrightのブラウザ依存ライブラリが必要です（`npx playwright install --with-deps chromium`）。既存のChromeを使う場合は`PAMI_CHROME_PATH`を指定します。実サイトでの確認は[手動検証手順](docs/MANUAL_TESTS.md)を参照してください。CIは`.github/workflows/ci.yml`で型チェック・単体試験・Chrome/Edgeビルド・権限チェックを実行します。
+LinuxではPlaywrightのブラウザ依存ライブラリが必要です（`npx playwright install --with-deps chromium`）。既存のChromeを使う場合は`PAMI_CHROME_PATH`を指定します。実サイトでの確認は[手動検証手順](docs/MANUAL_TESTS.md)を参照してください。CI（`.github/workflows/ci.yml`）は、型チェック・単体試験（静的なセキュリティガードを含む）・Chrome/Edgeビルド・権限チェック・`npm audit`・gitleaksによる全履歴の秘密情報スキャン・合成ブラウザ試験を、読み取り専用の権限で実行します。
 
 参照fixtureの再生成手順は[tests/reference/README.md](tests/reference/README.md)にあります。変更履歴は[CHANGELOG.md](CHANGELOG.md)、未完了の作業は[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)です。
 
+## 貢献・脆弱性の報告
+
+Issue・Pull Requestを歓迎します。変更には試験を付け、[AGENTS.md](AGENTS.md)の不変条件（明示操作のみの取得、制限回避をしない、最小権限、`textContent`での表示など）を守ってください。第三者の作品画像・Prompt・Cookie・認証情報をIssueやPRに含めないでください。
+
+脆弱性は公開Issueに書かず、[SECURITY.md](SECURITY.md)の手順で非公開に報告してください。
+
 ## ライセンス・帰属
 
-[MIT License](LICENSE)。配布物に含まれる第三者コードはWXTの小さなランタイム（MIT）だけです。
+[MIT License](LICENSE)。配布物に含まれる第三者コードはWXTの小さなランタイム（MIT）だけです。詳細と、参照・実行しただけの外部プロジェクト（NovelAI公式実装、ComfyUI、AUTOMATIC1111）との関係は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)にまとめています。
 
 Stealth形式の読み取りは、NovelAIの公式参照実装（[NovelAI/novelai-image-metadata](https://github.com/NovelAI/novelai-image-metadata)、MIT）の挙動に合わせた独自実装です。コードはコピーしていません。
 
-pixiv、NovelAI、ComfyUI、AUTOMATIC1111とは関係ありません。リポジトリには第三者の作品画像・R18画像を含めていません（試験画像はすべて自作の合成画像です）。
+pixivはpixiv株式会社の商標です。本プロジェクトはpixiv、NovelAI、ComfyUI、AUTOMATIC1111とは関係がなく、承認も受けていません。名称は対応先を示すためだけに使っています。リポジトリには第三者の作品画像・R18画像を含めていません（試験画像はすべて自作の合成画像です）。
 
 ---
 
@@ -107,4 +113,6 @@ A Chrome/Edge Manifest V3 extension for pixiv. Hover a thumbnail to preview the 
 - **Live status (2026-11-19)**: synthetic tests pass. Live pixiv listing behaviour is not yet verified, because automated browsers receive a Cloudflare challenge. i.pximg.net rejects referer-less requests (403), so the **Metadata** fetch is expected to fail on real pixiv. Use **Local file** with an image you saved from pixiv's own viewer.
 - **Privacy**: talks only to www.pixiv.net and i.pximg.net; no telemetry, no storage, no uploads. See [PRIVACY](docs/PRIVACY.md).
 
-Build: `npm ci && npm run build`, then load `.output/chrome-mv3/` (or `.output/edge-mv3/` from `npm run build:edge`) as an unpacked extension. The UI is Japanese only. MIT licensed. Not affiliated with pixiv or NovelAI.
+Build: `npm ci && npm run build`, then load `.output/chrome-mv3/` (or `.output/edge-mv3/` from `npm run build:edge`) as an unpacked extension. The UI is Japanese only.
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). MIT licensed; third-party notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). pixiv is a trademark of pixiv Inc. This project is not affiliated with or endorsed by pixiv, NovelAI, ComfyUI or AUTOMATIC1111.

@@ -4,6 +4,15 @@ All notable changes. Dates are JST. The project is unreleased; the version stays
 
 ## [Unreleased]
 
+### Pre-publication audit — 2026-11-21
+- Audited the full history (all commits, GitHub PR refs, deleted files, binaries and image metadata), CI logs and artifacts, and PR text with gitleaks and a custom scan. No credentials found; historical local paths are harmless and history was not rewritten.
+- Added `THIRD_PARTY_NOTICES.md` (bundled WXT runtime license; how NovelAI, ComfyUI and AUTOMATIC1111 code was referenced or run without copying; trademarks).
+- SECURITY.md: interim reporting route until private vulnerability reporting is enabled (public repositories only), and the automated safeguards.
+- CI: actions pinned by commit SHA; new `npm audit --audit-level=high` and gitleaks jobs; uploads only sanitized evidence instead of the raw Playwright report.
+- Tests: static security guards (sinks, storage/cookie/network APIs, hosts, fetch policy, messaging) and adversarial tests (URL canonicalisation, message prototype pollution, spoofed contexts, hostile DOM labels, ReDoS-style input). Vitest 279 → 355.
+- `.gitignore`: secrets and signing keys, Playwright auth/trace/storage state, HAR, browser profiles, local Python environments.
+- README: contribution/security section, trademark disclaimer; reference-fixture instructions use a temporary directory instead of a fixed path.
+
 ### Maintenance — 2026-11-19
 - First GitHub Actions run green on Node 22/24, including the Playwright job.
 - Merged Dependabot updates: actions/checkout, setup-node and upload-artifact v7 (clears the Node.js 20 deprecation warning); TypeScript 7.0.2 (same diagnostics as 5.9.3 on a strictness probe); jsdom 31.0.1; Playwright 1.65.1, Vite 8.3.8, Vitest 5.1.0, WXT 0.21.5, @types/node 26.6.6.

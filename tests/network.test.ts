@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InspectionError, MAX_IMAGE_BYTES, readBounded } from '../src/limits';
 import { createInspector, type InspectRequest, type Sender } from '../src/network/inspector';
-import { jpeg as jpegFile, originalUrl, pngWithText, png } from './fixtures';
+import { jpeg as jpegFile, originalUrl, pngWithText, png, text } from './fixtures';
 
 const sender: Sender = { id: 'extension', frameId: 0, url: 'https://www.pixiv.net/artworks/123', tab: { id: 7 } };
 const request: InspectRequest = { type: 'INSPECT_PIXIV_IMAGE', requestId: 'test-1', artworkId: '123', page: 0, url: originalUrl() };
@@ -182,5 +182,35 @@ describe('structured worker failures', () => {
   it('classifies oversized originals as a safety limit, not a server denial', async () => {
     const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response(new Uint8Array(8), { headers: { 'content-type': 'image/png', 'content-length': String(MAX_IMAGE_BYTES + 1) } })));
     expect(await worker.handle(request, sender)).toMatchObject({ status: 'too-large', error: { code: 'too-large' } });
+  });
+});
+
+describe('message boundary attacks', () => {
+  it('does not merge untrusted message objects (prototype pollution)', async () => {
+    const worker = setup();
+    const message = JSON.parse(`{"type":"INSPECT_PIXIV_IMAGE","requestId":"proto","artworkId":"123","page":0,"url":${JSON.stringify(originalUrl())},"__proto__":{"polluted":true,"url":"https://evil.example/x.png"},"constructor":{"prototype":{"polluted":true}}}`);
+    expect((await worker.handle(message, sender))?.status).toBe('found');
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(worker.fetcher).toHaveBeenCalledExactlyOnceWith(originalUrl(), expect.anything());
+  });
+  it.each([
+    'https://www.pixiv.net@evil.example/', 'https://www.pixiv.net.evil.example/', 'http://www.pixiv.net/', 'https://www.pixiv.net:8443/',
+    `https://www.pixiv.net/${'a'.repeat(4100)}`, 'https://pixiv.net/', ['https://www.pixiv.net/'], { href: 'https://www.pixiv.net/' },
+  ])('rejects a spoofed or oversized operation context %#', async contextUrl => {
+    const worker = setup();
+    expect((await worker.handle({ ...request, contextUrl }, sender))?.status).toBe('access-denied');
+    expect(worker.fetcher).not.toHaveBeenCalled();
+  });
+  it.each([['type', 'inspect_pixiv_image'], ['requestId', 'x'.repeat(81)], ['requestId', 'a b'], ['page', '0'], ['page', 1e3], ['page', Number.NaN], ['url', 42], ['artworkId', 123]])('rejects malformed field %s=%j without fetching', async (key, value) => {
+    const worker = setup();
+    const result = await worker.handle({ ...request, [key]: value }, sender);
+    expect(result === undefined || result.status === 'access-denied').toBe(true);
+    expect(worker.fetcher).not.toHaveBeenCalled();
+  });
+  it('JSON round-trips results without turning keywords into prototypes', async () => {
+    const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response(png(text('__proto__', '{"polluted":true}'), text('constructor', 'x')), { headers: { 'content-type': 'image/png' } })));
+    const result = JSON.parse(JSON.stringify(await worker.handle(request, sender)));
+    expect(Object.hasOwn(result.rawTextChunks, '__proto__')).toBe(true);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });

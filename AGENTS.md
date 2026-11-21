@@ -37,7 +37,7 @@ A small, privacy-first Chrome/Edge MV3 extension: user-hovered pixiv thumbnail p
 ## Workflow
 1. Read the specification and current code; state a short plan.
 2. Add a failing test for each bug or new format, then fix. New parsers need upstream-verified fixtures (`scripts/reference-fixtures.py`) or a documented reason why not.
-3. Run `npm run typecheck`, `npm test`, `npm run build`, `npm run build:edge`, `npm run check:manifest`; run `npm run test:browser` and `npm run test:extension` when UI/worker code changes.
+3. Run `npm run typecheck`, `npm test`, `npm run build`, `npm run build:edge`, `npm run check:manifest`; run `npm run test:browser` and `npm run test:extension` when UI/worker code changes. `tests/static-guards.test.ts` encodes the invariants above; change it only together with a documented decision. Keep `THIRD_PARTY_NOTICES.md` current when bundled code or referenced projects change.
 4. Live pixiv checks: distinguish NOT RUN from PASS/FAIL. Synthetic success is never live success. Do not evade bot challenges.
 5. Update README/docs in the same change. Record evidence without images, prompts, credentials, artwork IDs or local paths.
 6. Never push, publish, create releases/issues, or install into another browser profile without an explicit request.

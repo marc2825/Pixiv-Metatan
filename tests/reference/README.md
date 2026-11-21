@@ -27,7 +27,7 @@ Upstream source is downloaded to a temporary directory outside the repository. I
 ## Reproduce
 
 ```bash
-mkdir -p /tmp/pami-ref && cd /tmp/pami-ref
+REF="$(mktemp -d)" && cd "$REF"   # any empty directory outside the repository
 N=https://raw.githubusercontent.com/NovelAI/novelai-image-metadata/3428907ac7183d7e36d7cc39e8f46f6f35ce99c1
 C=https://raw.githubusercontent.com/Comfy-Org/ComfyUI/d07dff4565ea9804277fff8cdfa0c817e08c3d44
 A=https://raw.githubusercontent.com/AUTOMATIC1111/stable-diffusion-webui/82a973c04367123ae98bd9abdf80d9eda9b910e2
@@ -36,7 +36,7 @@ curl -fsSL $C/nodes.py -o comfy_nodes.py && curl -fsSL $C/comfy_api/latest/_ui.p
 curl -fsSL $A/modules/images.py -o a1111_images.py
 python3 -m venv venv && venv/bin/pip install pillow numpy pynacl pyyaml piexif
 cd -  # back to the repository
-/tmp/pami-ref/venv/bin/python scripts/reference-fixtures.py --source-dir /tmp/pami-ref
+"$REF/venv/bin/python" scripts/reference-fixtures.py --source-dir "$REF"
 npm test && npm run test:extension
 ```
 
