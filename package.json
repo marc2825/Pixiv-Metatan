@@ -17,7 +17,7 @@
     "test:extension": "npm run build && playwright test --config playwright.extension.config.ts",
     "verify:live": "node --experimental-strip-types scripts/verify-live.ts",
     "test:watch": "vitest",
-    "check:manifest": "node scripts/check-manifest.mjs",
+    "check:manifest": "node --experimental-strip-types scripts/check-manifest.ts",
     "zip:edge": "wxt zip -b edge",
     "fixtures:reference": "python3 scripts/reference-fixtures.py"
   },

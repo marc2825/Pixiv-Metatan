@@ -26,7 +26,7 @@ Include a minimal, synthetic reproduction (for example a generated PNG). Never i
 
 ## Automated safeguards
 
-- `npm run check:manifest` fails if the built manifests request more permissions, hosts or exposure than above.
+- `npm run check:manifest` (policy in `scripts/manifest-policy.ts`, unit-tested with synthetic manifests) fails if a built manifest requests more permissions, hosts or exposure than above. It also fails unless there is exactly one top-frame, isolated-world pixiv content script with one JS file, and a single service-worker background.
 - `tests/static-guards.test.ts` fails if extension code gains HTML-injection sinks, storage or cookie APIs, other network APIs, external messaging or new hosts, if it changes the original-fetch policy, or if it uses declarativeNetRequest outside the narrow Referer rule.
 - CI (`.github/workflows/ci.yml`) runs with a read-only token and no secrets. It includes `npm audit --audit-level=high` and a gitleaks scan of the full history (pinned, checksum-verified binary, redacted output).
 
