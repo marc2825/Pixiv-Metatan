@@ -5,7 +5,7 @@ import { classifyTextChunks, v4Captions } from '../src/metadata/normalize';
 import { parsePngTextChunks } from '../src/metadata/png';
 import { readStealth } from '../src/metadata/stealth';
 import { jpegExif, parseExifText, webpExif } from '../src/metadata/exif';
-import { MAX_STEALTH_BYTES } from '../src/limits';
+import { MAX_STEALTH_BYTES, MAX_STEALTH_ROW_BYTES } from '../src/limits';
 import { asciiValue, chunk, concat, enc, idat, ihdr, jpeg, pngSignature, stealthPng, stealthStream, text, tiff, userComment, webp } from './fixtures';
 
 const novelai = { Software: 'NovelAI', Description: 'stealth prompt', Comment: JSON.stringify({ prompt: 'stealth prompt', uc: 'stealth negative', seed: 7, signed_hash: 'claimed' }) };
@@ -49,6 +49,22 @@ describe('NovelAI stealth_pngcomp (alpha LSB) reader', () => {
     expect(await readStealth({ ...layout, bitDepth: 8, colorType: 6, interlace: 1 })).toMatchObject({ state: 'not-checked', reason: 'stealth-unsupported-layout' });
     expect(await readStealth({ ...layout, bitDepth: 8, colorType: 3, interlace: 0, transparency: true })).toMatchObject({ state: 'not-checked', reason: 'stealth-unsupported-layout' });
     expect(await readStealth({ ...layout, width: 4, height: 4, bitDepth: 8, colorType: 6, interlace: 0 })).toMatchObject({ state: 'not-present', reason: 'stealth-too-small' });
+  });
+  it('never allocates huge row buffers for extreme aspect ratios (issue #10)', async () => {
+    // 40,000,000 x 1 RGBA passes MAX_PIXELS but would need ~160 MB per row buffer.
+    const extreme = concat(pngSignature, ihdr(40_000_000, 1), text('Software', 'NovelAI'), text('Comment', '{"seed":1}'), idat(), chunk('IEND'));
+    const started = performance.now();
+    expect(await stealthOf(extreme)).toEqual({ state: 'not-checked', reason: 'stealth-row-too-large' });
+    const result = await inspectImage(extreme);
+    expect(result).toMatchObject({ status: 'found', generator: 'novelai', stealth: 'not-checked', fields: { seed: '1' } });
+    expect(result.notes.join(' ')).toContain('Stealth（アルファチャンネル）は未検査');
+    expect(performance.now() - started).toBeLessThan(1000);
+    // Boundary: a row of exactly 1 MiB is still decoded (here the empty IDAT then fails as image data).
+    const layout = { height: 1, bitDepth: 8, colorType: 6, interlace: 0, transparency: false, idat: [] as Uint8Array[] };
+    const boundary = await readStealth({ ...layout, width: MAX_STEALTH_ROW_BYTES / 4 });
+    expect(boundary.state).toBe('not-checked'); expect(boundary.reason).not.toBe('stealth-row-too-large');
+    expect(await readStealth({ ...layout, width: MAX_STEALTH_ROW_BYTES / 4 + 1 })).toEqual({ state: 'not-checked', reason: 'stealth-row-too-large' });
+    expect(await readStealth({ ...layout, colorType: 4, width: MAX_STEALTH_ROW_BYTES / 2 + 1 })).toEqual({ state: 'not-checked', reason: 'stealth-row-too-large' });
   });
   it('identifies the uncompressed third-party variant without guessing its content', async () => {
     expect(await stealthOf(stealthPng(64, 64, stealthStream(novelai, 'stealth_pnginfo')))).toEqual({ state: 'not-checked', reason: 'stealth-uncompressed-unsupported' });
