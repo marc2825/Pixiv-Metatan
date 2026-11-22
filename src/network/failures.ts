@@ -4,7 +4,7 @@ import { emptyResult, type InspectionResult } from '../metadata/types';
 /** The supported recovery path when the original cannot be fetched. No bypass is attempted. */
 export const localFallback = '原寸を確認するには、pixivの作品ページで原寸画像を表示してブラウザで保存し、「ローカルファイルを検査」で選択してください（正規に閲覧・保存できる画像のみ）。';
 
-const ORIGINAL_403 = 'i.pximg.netはRefererのない取得を拒否することを確認しています（2026-11-19の実測: Cookie・Refererなしで原寸・縮小とも403）。この拡張は制限回避のためのReferer付与・Cookie移植・代理取得を行わないため、通常この方法では取得できません。公開範囲などの別の理由の可能性もあります。';
+const ORIGINAL_403 = '画像配信サーバーが拒否しました。この拡張は原寸の取得にpixivのReferer（https://www.pixiv.net/）だけを付け、Cookieは送りません。削除・非公開・公開範囲の変更、または配信側の仕様変更が考えられますが、この応答だけでは特定できません。自動再試行はしません。';
 
 /** Describe the failing layer from the observed status; do not invent the server's reason. */
 export function accessExplanation(code: string, layer: 'pages' | 'original', detail?: string): string {

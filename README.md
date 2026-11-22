@@ -5,8 +5,8 @@ pixivの作品サムネイルにマウスを合わせて画像をプレビュー
 [English summary](#english-summary) · [検証状況](docs/TEST_STATUS.md) · [プライバシー](docs/PRIVACY.md) · [セキュリティ](SECURITY.md) · [設計](docs/ARCHITECTURE.md)
 
 > [!IMPORTANT]
-> **開発版（0.1.0、未リリース）です。** 自動試験はすべて合成データで実施しています。実pixivの一覧ページでの動作は未確認です（自動ブラウザはCloudflareの確認画面で止まるため）。
-> 2026-11-19の実測では、画像配信サーバー（i.pximg.net）はRefererのない取得を拒否しました（HTTP 403）。この拡張は制限回避をしないため、**Metadataボタンで原寸を取得できないのが現状の想定動作**です。原寸のメタデータは「ローカルファイルを検査」で確認してください。
+> **開発版（0.1.0、未リリース）です。** 自動試験は合成データで実施しています。実pixivの一覧ページでのホバー表示とMetadata操作は未確認です（自動ブラウザはCloudflareの確認画面で止まるため）。
+> 画像配信サーバー（i.pximg.net）はpixivのRefererがない取得を拒否します（403）。そのため、この拡張は**自身の原寸取得1件にだけ**`Referer: https://www.pixiv.net/`を付けます（Cookieは送りません）。2026-11-22に、この取得経路で原寸を取得できる（200）ことを確認しました。
 
 ![合成データでのホバー表示と検査結果](docs/screenshots/hover-result.png)
 
@@ -52,7 +52,7 @@ npm run build:edge   # Edge:   .output/edge-mv3/
 1. pixivの一覧で作品画像にマウスを合わせる（またはTabで作品リンクにフォーカスする）と、約250ms後にプレビューが開きます。サムネイルとプレビューの両方から離れると約200ms後に閉じます。Escapeでも閉じます。
 2. 複数枚の作品は、画像の上でホイールを回すか、前後ボタン・左右キーでページを切り替えます（`2 / 8`のように表示）。キーボードでは作品リンクで↓キーを押すとプレビューに入れます。
 3. **Metadata**を押すと、表示中ページの原寸画像1枚だけを取得・解析します。結果はタブ内のメモリで最長2分だけ再利用します。
-4. 取得できない場合（403 / 429など）でもプレビューはそのまま使えます。原寸を確認するには、pixivの作品ページで原寸画像を表示してブラウザで保存し、**ローカルファイルを検査**で選んでください。選んだファイルが表示中の作品と同じ画像かどうかは確認しません。
+4. 取得できない場合（削除・非公開、403 / 429など）でもプレビューはそのまま使えます。手元に保存した画像は**ローカルファイルを検査**で確認できます。選んだファイルが表示中の作品と同じ画像かどうかは確認しません。
 5. Prompt・Negativeは見出し横の「コピー」、全体は「結果をコピー」「正規化JSONをコピー」で、クリックしたときだけクリップボードへコピーします。
 
 ## 制限
@@ -67,9 +67,9 @@ npm run build:edge   # Edge:   .output/edge-mv3/
 ## プライバシー
 
 - 接続先はpixiv（www.pixiv.net）と画像配信サーバー（i.pximg.net）だけです。画像・Prompt・ファイル名を外部へ送信しません。テレメトリー・広告・解析ツールはありません。
-- Cookie・パスワード・トークンを読み出しません。原寸の取得は認証情報・Refererを付けずに行います。
+- Cookie・パスワード・トークンを読み出しません。原寸の取得にはCookieを付けず、画像配信サーバーが要求するpixivのReferer（固定値）だけを付けます。pixivのページや他のサイトの通信は変更しません。
 - 結果はタブ内のメモリにだけ一時保存し、ディスクや拡張ストレージには保存しません。
-- 一覧の巡回、原寸の先読み、自動再試行、ログイン・年齢制限・ホットリンク制限・レート制限の回避は行いません。
+- 一覧の巡回、原寸の先読み、一括ダウンロード、自動再試行、ログイン・年齢制限・アクセス制限・レート制限の回避は行いません。
 
 詳細は[プライバシー説明](docs/PRIVACY.md)を参照してください。
 
@@ -90,7 +90,7 @@ LinuxではPlaywrightのブラウザ依存ライブラリが必要です（`npx 
 
 ## 貢献・脆弱性の報告
 
-Issue・Pull Requestを歓迎します。変更には試験を付け、[AGENTS.md](AGENTS.md)の不変条件（明示操作のみの取得、制限回避をしない、最小権限、`textContent`での表示など）を守ってください。第三者の作品画像・Prompt・Cookie・認証情報をIssueやPRに含めないでください。
+Issue・Pull Requestを歓迎します。変更には試験を付け、[AGENTS.md](AGENTS.md)の不変条件（明示操作のみの取得、Referer付与は拡張自身の原寸取得に限定、制限回避や一括取得をしない、最小権限、`textContent`での表示など）を守ってください。第三者の作品画像・Prompt・Cookie・認証情報をIssueやPRに含めないでください。
 
 脆弱性は公開Issueに書かず、[SECURITY.md](SECURITY.md)の手順で非公開に報告してください。
 
@@ -109,8 +109,9 @@ pixivはpixiv株式会社の商標です。本プロジェクトはpixiv、Novel
 A Chrome/Edge Manifest V3 extension for pixiv. Hover a thumbnail to preview the artwork (all pages, with wheel/arrow navigation). Press **Metadata** to fetch and parse exactly one original image locally, or inspect a file you saved yourself.
 
 - **Reads**: PNG text (NovelAI incl. V4/V4.5 character captions, ComfyUI, AUTOMATIC1111/Forge), NovelAI alpha-channel Stealth (`stealth_pngcomp`), and JPEG/WebP EXIF (AUTOMATIC1111/Forge UserComment, ComfyUI WebP tags).
-- **Does not**: verify NovelAI signatures (claims are shown as *unverified*), treat missing metadata as proof of human authorship, crawl listings, prefetch originals, retry automatically, read cookies, spoof headers or use proxies.
-- **Live status (2026-11-19)**: synthetic tests pass. Live pixiv listing behaviour is not yet verified, because automated browsers receive a Cloudflare challenge. i.pximg.net rejects referer-less requests (403), so the **Metadata** fetch is expected to fail on real pixiv. Use **Local file** with an image you saved from pixiv's own viewer.
+- **Does not**: verify NovelAI signatures (claims are shown as *unverified*), treat missing metadata as proof of human authorship, crawl listings, bulk-download, prefetch originals, retry automatically, read or send cookies, rewrite CORS headers, change requests of pages or other sites, or use proxies.
+- **Original fetch**: i.pximg.net requires a pixiv Referer. The extension sets `Referer: https://www.pixiv.net/` only on its own single original request (declarativeNetRequest session rule; permission `declarativeNetRequestWithHostAccess`). This request path returned 200 on 2026-11-22.
+- **Live status**: synthetic tests pass. Hover and **Metadata** inside real pixiv pages are not yet verified, because automated browsers receive a Cloudflare challenge.
 - **Privacy**: talks only to www.pixiv.net and i.pximg.net; no telemetry, no storage, no uploads. See [PRIVACY](docs/PRIVACY.md).
 
 Build: `npm ci && npm run build`, then load `.output/chrome-mv3/` (or `.output/edge-mv3/` from `npm run build:edge`) as an unpacked extension. The UI is Japanese only.

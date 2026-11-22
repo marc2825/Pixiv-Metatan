@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 
 const expected = {
-  permissions: [],
+  permissions: ['declarativeNetRequestWithHostAccess'],
   host_permissions: ['https://www.pixiv.net/*', 'https://i.pximg.net/*'],
   contentMatches: ['https://www.pixiv.net/*'],
 };

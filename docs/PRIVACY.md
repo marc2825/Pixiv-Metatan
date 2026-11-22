@@ -10,7 +10,7 @@
 |---|---|---|---|
 | サムネイルに約250msホバー／フォーカス | その作品のページ一覧（`/ajax/illust/{id}/pages`） | www.pixiv.net | ブラウザの通常の同一オリジンセッション（拡張はCookieを読みません） |
 | プレビュー表示 | APIまたはページ上の縮小画像を通常の`<img>`で表示 | i.pximg.net | ブラウザの通常の画像表示と同じ |
-| **Metadata／元画像を検査**を押したとき | 表示中ページの原寸画像1枚 | i.pximg.net | 認証情報・Refererなし、リダイレクトは追跡しない |
+| **Metadata／元画像を検査**を押したとき | 表示中ページの原寸画像1枚 | i.pximg.net | 認証情報（Cookie）なし。固定値の`Referer: https://www.pixiv.net/`だけを付ける（画像配信サーバーが要求するため）。リダイレクトは追跡しない |
 
 - 接続先はpixivとpximgだけです。通常の通信と同様、接続先にはIPアドレス等が伝わります。
 - 画像、Prompt、生成設定、RAW、ローカルファイルの内容やファイル名を外部へ送信しません。テレメトリー・広告・解析SDK・追跡ライブラリはありません。
@@ -26,7 +26,7 @@
 
 ## 権限
 
-- API権限: なし（cookies / tabs / storage / webRequest などは要求しません）。
+- API権限: `declarativeNetRequestWithHostAccess`だけです。拡張自身が行う原寸画像の取得1件にpixivのRefererを付けるためにだけ使います。pixivのページや他のサイトの通信、応答ヘッダーは変更しません。cookies / tabs / storage / webRequest などは要求しません。
 - ホスト権限: `https://www.pixiv.net/*`（コンテンツスクリプトとタブURLの確認）、`https://i.pximg.net/*`（原寸画像の取得）。
 - 他のサイト、閲覧履歴、Cookie、保存されたパスワードは読みません。
 
@@ -36,6 +36,6 @@
 
 ## English
 
-The extension talks only to www.pixiv.net (page list on hover, using the browser's normal same-origin session) and i.pximg.net (preview images as ordinary `<img>`, and one original per explicit click, sent without credentials or Referer). All parsing is local. Nothing is uploaded, no telemetry exists, and nothing is persisted: results are kept in tab memory for at most two minutes. It requests no API permissions and no hosts other than these two, and it never reads cookies, history or passwords.
+The extension talks only to www.pixiv.net (page list on hover, using the browser's normal same-origin session) and i.pximg.net (preview images as ordinary `<img>`, and one original per explicit click, sent without cookies and with the fixed header `Referer: https://www.pixiv.net/` that the image server requires). All parsing is local. Nothing is uploaded, no telemetry exists, and nothing is persisted: results are kept in tab memory for at most two minutes. Its only API permission is `declarativeNetRequestWithHostAccess`, used solely for that Referer on its own original request. It requests no hosts other than these two and never reads cookies, history or passwords.
 
 Contact: see [SECURITY.md](../SECURITY.md).

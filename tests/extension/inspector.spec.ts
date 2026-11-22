@@ -19,7 +19,7 @@ test('production injection, closed root and real runtime messaging inspect exact
   await expect.poll(() => driver.text(ui.result)).toContain('メタデータから推定: novelai');
   expect(await driver.text(ui.result)).toContain('NovelAI電子署名: 未検証');
   expect(await driver.text(ui.result)).toContain('作品 123 / 2枚目');
-  expect(extension.records.filter(r => r.kind === 'original')).toMatchObject([{ kind: 'original', worker: true, page: 1, status: 200, mime: 'image/png' }]);
+  expect(extension.records.filter(r => r.kind === 'original')).toMatchObject([{ kind: 'original', worker: true, page: 1, status: 200, mime: 'image/png', cookie: false }]);
   expect(extension.unexpected).toEqual([]);
 });
 

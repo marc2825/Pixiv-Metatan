@@ -17,6 +17,8 @@ interface Dependencies {
   tabUrl: (tabId: number) => Promise<string | undefined>;
   fetcher?: typeof fetch;
   timeoutMs?: number;
+  /** Awaited before the original fetch (the worker installs its Referer session rule here). */
+  beforeFetch?: () => Promise<void>;
 }
 
 const fallback = `${localFallback}アクセス制限の回避や自動再試行は行いません。`;
@@ -71,6 +73,7 @@ export function createInspector(deps: Dependencies) {
         // sender.url can predate an SPA transition. Query the current top-level tab.
         const currentUrl = await deps.tabUrl(tabId);
         if (!matchesContext(currentUrl)) throw new InspectionError('current-context-mismatch');
+        await deps.beforeFetch?.();
         signal.throwIfAborted();
         const response = await (deps.fetcher ?? fetch)(url, { signal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer' });
         if (!response.ok) {

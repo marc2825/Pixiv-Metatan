@@ -1,6 +1,6 @@
 # Verification status — 2026-11-19 (JST)
 
-**Implementation and synthetic tests: PASS. Live pixiv acceptance: not done. The hover UI is NOT VERIFIED on real pages, and the original fetch was measured as rejected (403).**
+**Implementation and synthetic tests: PASS. Live pixiv acceptance: not done. Hover and Metadata inside real pixiv pages are NOT VERIFIED. The worker's original-fetch path (pixiv Referer, no cookies) returned 200 against real i.pximg.net on 2026-11-22.**
 
 ## Automated results
 
@@ -10,7 +10,7 @@
 | `npm test` | PASS — 11 files / 355 tests | Parsers, 12 upstream-verified reference fixtures, URL/authorisation, worker, DOM races, caches, wheel, UI rendering, static security guards and adversarial inputs (191 tests before the 2026-11-19 audit, all kept) |
 | `npm run build` | PASS | Chrome MV3, 96.63 kB (background 29.1 kB, content 61.7 kB, icons) |
 | `npm run build:edge` | PASS | Edge MV3, same size. A build, not a run in real Edge |
-| `npm run check:manifest` | PASS | Chrome/Edge: no API permissions; hosts pixiv/pximg only; top-frame isolated script |
+| `npm run check:manifest` | PASS | Chrome/Edge: only `declarativeNetRequestWithHostAccess`; hosts pixiv/pximg only; exactly one top-frame isolated content script |
 | `npm run test:browser` | PASS — 12 tests | Test adapter, synthetic pages and HTTP, Chromium 156 |
 | `npm run test:extension` | PASS — 17 tests | Production MV3 (closed root, runtime messaging, worker) in disposable profiles; all HTTP synthetic ([evidence](evidence/mv3-synthetic-2026-11-19.json)) |
 | `npm audit` | 0 vulnerabilities | devDependencies only |
@@ -27,7 +27,9 @@ Reference fixtures (`scripts/reference-fixtures.py`) were regenerated with pinne
 | Document, plain HTTP client | PASS (200) | No cookies |
 | Pages API, plain HTTP, one public artwork | PASS (200, JSON) | URL shapes (`thumb_mini`, `small`, `regular`, `original`) match the validators |
 | Original, no cookie / no Referer (worker profile) | FAIL (403) | Derivative also 403. The extension does not work around this by policy ([evidence](evidence/live-layers-2026-11-19.json)) |
-| Original or derivative with a pixiv Referer | NOT RUN | Would require forging headers outside a real page |
+| Original, no cookie / `Referer: https://www.pixiv.net/` (plain HTTP) | PASS (200, image/jpeg) | 2026-11-22, after the maintainer decided to send the pixiv Referer (issue #9). No `Access-Control-Allow-Origin` in the response ([evidence](evidence/live-referer-2026-11-22.json)) |
+| Production build, worker fetch with the session rule (Chromium 156, real i.pximg.net) | PASS (200, image/jpeg) | Same request options as the product; session rule installed at startup |
+| Ordinary tab `<img>` of the same original (rule scope) | PASS (load fails as expected) | The rule does not change requests from pages |
 | Extension inside a real pixiv tab (listing DOM, preview `<img>`, worker fetch) | NOT RUN | Blocked at document level for automation; needs [manual GUI check](MANUAL_TESTS.md) |
 | Logged-in / age-restricted scope | NOT RUN | No credentials imported |
 | Real Edge, Chrome/Edge 120, high DPI, long sessions | NOT RUN | |
