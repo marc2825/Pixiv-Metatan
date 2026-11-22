@@ -86,6 +86,8 @@ export const test = base.extend<{ extension: TestExtension }>({
           if (reply.failure) return route.abort('failed');
           return route.fulfill({ status, headers: { 'content-type': mime }, body: Buffer.from(reply.body ?? pngWithText({ Software: 'NovelAI', Description: 'synthetic prompt', Comment: '{"seed":42,"signed_hash":"fake"}' })) }).catch(() => {});
         }
+        // The installed extension's own packaged files (e.g. inspector.html) are not network traffic.
+        if (url.protocol === 'chrome-extension:' && url.host === new URL(worker.url()).host) return route.continue();
         // Fail closed: no real pixiv/pximg or third-party traffic in this suite.
         unexpected.push(url.origin);
         return route.abort('blockedbyclient');

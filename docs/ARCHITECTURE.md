@@ -21,6 +21,9 @@ pixiv top frame / isolated content script / closed Shadow DOM
        │         15秒 / 実受信48 MiB / MIME + magic → inspectImage → JSON互換の結果
        └─ ファイル選択 → inspectLocalFile → 同じ inspectImage（作品とは関連付けない）
 
+ツールバーのアイコン → action.onClicked → tabs.create(inspector.html)（拡張ページ・通信なし）
+  └─ local-inspector.ts: ファイル選択 / ドラッグ＆ドロップ → inspectLocalFile → renderResult（同じ実装を共用）
+
 inspectImage (src/metadata, pixiv/UIから独立)
   PNG → png.ts（構造・CRC・tEXt/zTXt/iTXt）→ stealth.ts（アルファLSB）→ normalize.ts（分類）
   JPEG/WebP → exif.ts（APP1 / RIFF EXIF → TIFF → 文字列タグ）→ normalize.ts
