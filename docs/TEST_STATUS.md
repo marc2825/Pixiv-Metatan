@@ -1,4 +1,4 @@
-# Verification status — 2026-11-19 (JST)
+# Verification status — 2026-11-22 (JST)
 
 **Implementation and synthetic tests: PASS. Live pixiv acceptance: not done. Hover and Metadata inside real pixiv pages are NOT VERIFIED. The worker's original-fetch path (pixiv Referer, no cookies) returned 200 against real i.pximg.net on 2026-11-22.**
 
@@ -7,33 +7,33 @@
 | Command | Result | Scope |
 |---|---|---|
 | `npm run typecheck` | PASS | WXT prepare + TypeScript strict (src, entrypoints, tests, scripts) |
-| `npm test` | PASS — 11 files / 355 tests | Parsers, 12 upstream-verified reference fixtures, URL/authorisation, worker, DOM races, caches, wheel, UI rendering, static security guards and adversarial inputs (191 tests before the 2026-11-19 audit, all kept) |
-| `npm run build` | PASS | Chrome MV3, 96.63 kB (background 29.1 kB, content 61.7 kB, icons) |
+| `npm test` | PASS — 15 files / 412 tests | Parsers, 12 upstream-verified reference fixtures, URL/authorisation, worker, Referer rule, DOM races, page store, caches, wheel, UI rendering, local inspector page, manifest policy, hover traffic benchmark, static security guards and adversarial inputs (191 tests before the 2026-11-19 audit, all kept) |
+| `npm run build` | PASS | Chrome MV3: background, content script, local inspector page (`inspector.html`), icons |
 | `npm run build:edge` | PASS | Edge MV3, same size. A build, not a run in real Edge |
 | `npm run check:manifest` | PASS | Chrome/Edge: only `declarativeNetRequestWithHostAccess`; hosts pixiv/pximg only; exactly one top-frame isolated content script |
 | `npm run test:browser` | PASS — 12 tests | Test adapter, synthetic pages and HTTP, Chromium 156 |
-| `npm run test:extension` | PASS — 17 tests | Production MV3 (closed root, runtime messaging, worker) in disposable profiles; all HTTP synthetic ([evidence](evidence/mv3-synthetic-2026-11-19.json)) |
+| `npm run test:extension` | PASS — 18 tests | Production MV3 (closed root, runtime messaging, worker, local inspector page) in disposable profiles; all HTTP synthetic ([evidence](evidence/mv3-synthetic-2026-11-22.json)) |
 | `npm audit` | 0 vulnerabilities | devDependencies only |
 | `git diff --check` | PASS | |
-| GitHub Actions CI | PASS | First run [44462959593](https://github.com/marc2825/pixiv-ai-metadata-inspector/actions/runs/44462959593) on `15a76f9`: verify jobs on Node 22 and 24, and the Playwright job, all green on GitHub-hosted runners. Every Dependabot PR (#1–#6) also passed all three jobs before merging |
+| GitHub Actions CI | PASS | Green on `main` since 2026-11-19 (first run [44462959593](https://github.com/marc2825/pixiv-ai-metadata-inspector/actions/runs/44462959593)). Since PR #8 (run 44846975048), five jobs: verify on Node 22 and 24, `npm audit`, gitleaks, Playwright. Every PR is checked before merge |
 
 Reference fixtures (`scripts/reference-fixtures.py`) were regenerated with pinned, hash-checked upstream code. NovelAI's official Stealth writer and reader, ComfyUI `SaveImage` and `_create_webp_metadata`, and AUTOMATIC1111 v1.10.1 `save_image_with_geninfo` / `read_info_from_image` all passed their read-backs. The six older fixtures were reproduced byte-for-byte.
 
-## Live pixiv (2026-11-19)
+## Live pixiv (2026-11-19 and 2026-11-22)
 
 | Check | Result | Notes |
 |---|---|---|
 | Document, automated headless Chromium 156 | FAIL (403) | Cloudflare managed challenge (`cf-mitigated: challenge`, "Just a moment..."). Not solved or evaded ([evidence](evidence/live-connectivity-2026-11-19.json)) |
 | Document, plain HTTP client | PASS (200) | No cookies |
 | Pages API, plain HTTP, one public artwork | PASS (200, JSON) | URL shapes (`thumb_mini`, `small`, `regular`, `original`) match the validators |
-| Original, no cookie / no Referer (worker profile) | FAIL (403) | Derivative also 403. The extension does not work around this by policy ([evidence](evidence/live-layers-2026-11-19.json)) |
+| Original, no cookie / no Referer (the worker's request until 2026-11-21) | FAIL (403) | Derivative also 403 ([evidence](evidence/live-layers-2026-11-19.json)) |
 | Original, no cookie / `Referer: https://www.pixiv.net/` (plain HTTP) | PASS (200, image/jpeg) | 2026-11-22, after the maintainer decided to send the pixiv Referer (issue #9). No `Access-Control-Allow-Origin` in the response ([evidence](evidence/live-referer-2026-11-22.json)) |
 | Production build, worker fetch with the session rule (Chromium 156, real i.pximg.net) | PASS (200, image/jpeg) | Same request options as the product; session rule installed at startup |
 | Ordinary tab `<img>` of the same original (rule scope) | PASS (load fails as expected) | The rule does not change requests from pages |
-| Extension inside a real pixiv tab (listing DOM, preview `<img>`, worker fetch) | NOT RUN | Blocked at document level for automation; needs [manual GUI check](MANUAL_TESTS.md) |
+| Extension inside a real pixiv tab (listing DOM, preview `<img>`, Metadata click) | NOT RUN | Blocked at document level for automation; needs the [manual GUI check](MANUAL_TESTS.md) (issue #11) |
 | Logged-in / age-restricted scope | NOT RUN | No credentials imported |
 | Real Edge, Chrome/Edge 120, high DPI, long sessions | NOT RUN | |
-| Stealth/V4/EXIF on real generated images | NOT RUN | Synthetic upstream-verified fixtures only |
+| Stealth/V4/EXIF on real generated images; survival after posting to pixiv | NOT RUN | Synthetic upstream-verified fixtures only; protocol in MANUAL_TESTS (issue #12) |
 | NovelAI signature verification | Not implemented | Never shows verified/invalid |
 
 The live-connectivity file records the artifact hashes of the build at measurement time. The final build hashes are in the synthetic evidence file.
@@ -64,7 +64,7 @@ Trade-off: only during a sweep, the last card's page list waits 150 ms longer (t
 - Worker: sender/frame/tab/context checks before and after fetch, artwork-bound vs URL-bound requests, structured failures with Retry-After, global single slot, cancellation, timeout, MIME/magic, streamed limits.
 - UI: 250 ms / 200 ms timing, wheel gestures, keys, Escape propagation, focus retention, tab-level cooldown, non-inspectable pages, `srcset`, single shared ticker, host re-attachment, SPA/BFCache, local files never assigned to artworks, text-only rendering, click-only copy.
 
-Test-assertion changes in this audit only followed intended behaviour changes (JPEG is now parsed; new labels). Each kept the original guarantee, and none were deleted.
+Test-assertion changes only followed intended behaviour changes: JPEG is now parsed, new labels, the 403 explanation after the Referer decision, and request timing in the rapid-switch hover test (#14). Each kept the original guarantee, and none were deleted.
 
 ## Environment
 
@@ -83,10 +83,10 @@ Linux x64 (WSL2), Node 24.21.0, npm 11.19.0, Chromium 156.0.8078.4. Re-run on 20
 | Current tracked files | Same patterns, plus tracked-but-ignored check | No local paths, credentials or private data; no tracked file matches `.gitignore` |
 | Dependency licenses | `package-lock.json` license fields; bundle inspection | Permissive dev tooling (MPL-2.0 `lightningcss` build-time only); bundle contains only project code and WXT runtime (MIT) |
 
-## 公開判定 (2026-11-21)
+## 公開判定 (2026-11-22)
 
 | 対象 | 判定 | 根拠 |
 |---|---|---|
-| GitHubでのソース公開 | CONDITIONAL GO | 認証情報の漏洩なし（全履歴・CIログ・Artifact・PR本文を確認）。ライセンス・第三者表記・セキュリティ方針・CIあり。条件: 公開前整備のPRをCI成功のうえでマージすること。公開直後にGitHub設定（private vulnerability reporting等、[RELEASE_CHECKLIST](RELEASE_CHECKLIST.md#right-after-switching-to-public-github-settings)）を行う |
-| GitHub Releasesでの配布 | NO-GO | 実タブでのホバー・一覧検出が未確認。Metadataは実pixivで403になる想定。手動受入（MANUAL_TESTS 1〜8）後に、制限を明記したプレリリースとして再判定 |
-| Chrome Web Store | NO-GO | 上記に加え、プライバシーポリシーURL・ストア素材・名称（第三者商標）・pixiv規約の確認が未了。主要機能（原寸取得）が方針により実pixivで動作しない |
+| GitHubでのソース公開 | GO | 認証情報の漏洩なし（2026-11-21に全履歴・CIログ・Artifact・PR本文を監査）。ライセンス・第三者表記・セキュリティ方針・CIあり。公開前整備（PR #8）はマージ済み。Public化の直後にGitHub設定（private vulnerability reporting等、[RELEASE_CHECKLIST](RELEASE_CHECKLIST.md#source-publication-github)）を行う |
+| GitHub Releasesでの配布 | NO-GO | 実pixivのページ上でのホバー・一覧検出・Metadata操作が未確認（#11）。原寸の取得経路はWorkerからの取得で200を確認済み。手動受入と実Edgeの確認後に、検証範囲を明記したプレリリースとして再判定 |
+| Chrome Web Store | NO-GO | 上記に加え、プライバシーポリシーURL・ストア素材・名称（第三者商標）・pixiv規約（Referer付与を含む）の確認が未了 |

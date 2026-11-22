@@ -1,42 +1,37 @@
 # Release checklist
 
-Status 2026-11-21: **source publication: conditional GO (merge the pre-publication PR); packaged release and Chrome Web Store: NO-GO** (reasons in [TEST_STATUS.md](TEST_STATUS.md#公開判定-2026-11-21)).
+Status 2026-11-22. Reasons and evidence are in [TEST_STATUS.md](TEST_STATUS.md#公開判定-2026-11-22).
 
-## Automated (done in this repository)
-- [x] Locked, exact devDependencies; `npm audit`: 0 vulnerabilities; no runtime dependencies besides the bundled WXT runtime (MIT).
-- [x] `npm run typecheck`, `npm test`, `npm run build`, `npm run build:edge`, `npm run check:manifest` pass.
-- [x] `npm run test:browser` and `npm run test:extension` pass locally against synthetic responses.
-- [x] Manifest: API permission `declarativeNetRequestWithHostAccess` only (narrow Referer session rule); hosts `www.pixiv.net` and `i.pximg.net` only; top-frame isolated content script; icons present.
-- [x] Parsers cross-checked with upstream-verified synthetic fixtures (NovelAI writer/reader, ComfyUI, AUTOMATIC1111).
-- [x] No third-party artwork, R18 images, uploads, telemetry, credential handling or bypass mechanisms.
-- [x] README, SECURITY and PRIVACY match the implementation.
+| Target | Verdict | What is left |
+|---|---|---|
+| Source code on GitHub | **GO** | Switch the repository to public, then apply the GitHub settings below |
+| Packaged development build (GitHub Releases) | **NO-GO** | Live acceptance (#11), real Edge, release notes |
+| Chrome Web Store | **NO-GO** | Everything for Releases, plus the store requirements below |
 
-## Before publishing the source on GitHub
-- [x] Full-history secret audit: gitleaks plus a custom scan of every blob, image metadata, CI logs, artifacts and PR text. No credentials ([summary](TEST_STATUS.md#pre-publication-audit-2026-11-21)).
-- [x] No local paths or machine-specific values in current files; `.gitignore` covers secrets, signing keys, browser state, traces, HAR and local environments.
-- [x] LICENSE (MIT), [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md), trademark disclaimer, SECURITY.md with an interim reporting route.
-- [x] CI green on GitHub, read-only token, actions pinned by SHA, `npm audit` and gitleaks jobs, sanitized artifacts only.
-- [ ] Merge the pre-publication PR after its CI passes.
+## Done
+- [x] Pre-publication audit: PR #8, merged 2026-11-21 as `3c82536`; CI run 44846975048 green on `main`. It covered the full-history secret scan (no credentials), `THIRD_PARTY_NOTICES.md`, SECURITY.md, `.gitignore` hardening, actions pinned by SHA, and `npm audit` and gitleaks jobs.
+- [x] Issues #9, #10, #13–#17 resolved (2026-11-22): narrow pixiv Referer for the extension's own original request, Stealth row limit, EXIF unrelated tags, hover traffic, standalone local inspector, manifest policy, and this documentation sync.
+- [x] Automated, all synthetic and all in CI: typecheck, Vitest (15 files / 412 tests), Chrome and Edge builds, manifest guard, browser UI 12, production MV3 18, `npm audit`, gitleaks.
+- [x] Live, at the HTTP and worker level only: pages API 200; original 403 without and 200 with the pixiv Referer; production worker fetch 200 in Chromium 156.
+- [x] Locked, exact devDependencies; no runtime dependencies besides the bundled WXT runtime (MIT); no third-party artwork, telemetry or credential handling.
 
-## Right after switching to public (GitHub settings)
-These can only be changed in the repository settings. Private vulnerability reporting is available only for public repositories.
-- [ ] Settings → Advanced Security (Code security): enable **Private vulnerability reporting**, **Dependabot alerts**, **Dependabot security updates**, **Secret scanning** and **Push protection**. Optionally enable CodeQL default setup.
-- [ ] Settings → Rules → Rulesets (or Branches): protect `main`. Require a pull request and the status checks `Typecheck, unit tests, Chrome/Edge MV3 builds (Node 22)`, `(Node 24)`, `npm audit (high and critical)` and `Secret scan (gitleaks, full history)`. Block force pushes and deletion. Add the Playwright job after it has stayed stable.
-- [ ] Settings → Actions → General: keep **Workflow permissions** at "Read repository contents"; set fork pull request workflows to require approval (at least for first-time contributors).
-- [ ] Optional: delete the old `synthetic-mv3-report` artifacts (raw Playwright reports with runner paths and the commit author email) or let them expire (14-day retention).
-- [ ] Optional: add a repository description and topics; disable Wiki/Projects if unused.
+## Source publication (GitHub)
+- [ ] Maintainer switches the repository to public.
+- [ ] Right after, under Settings → Advanced Security (Code security), enable **Private vulnerability reporting** (public repositories only), **Dependabot alerts**, **Dependabot security updates**, **Secret scanning** and **Push protection**. CodeQL default setup is optional.
+- [ ] Settings → Rules → Rulesets: protect `main` (pull request required, no force push or deletion). Required checks: `Typecheck, unit tests, Chrome/Edge MV3 builds (Node 22)`, `(Node 24)`, `npm audit (high and critical)`, `Secret scan (gitleaks, full history)`. Add the Playwright job once it has stayed stable.
+- [ ] Settings → Actions → General: keep workflow permissions read-only; require approval for fork PR workflows (at least first-time contributors).
+- [ ] Optional: delete old `synthetic-mv3-report` artifacts (raw reports with runner paths and the author email) or let them expire; add a description and topics.
 
-## Before a packaged release (GitHub Releases)
-- [ ] Manual live acceptance in a normal Chrome on owner-controlled or legitimately viewable artwork ([MANUAL_TESTS.md](MANUAL_TESTS.md) items 1–8), logged out and logged in.
+## Packaged development build (GitHub Releases)
+- [ ] #11: manual acceptance in a normal Chrome ([MANUAL_TESTS.md](MANUAL_TESTS.md) 1–10), logged out and logged in. This includes **Metadata on a real pixiv page**; only the worker request path has been verified live so far.
 - [ ] Real Edge and minimum version 120.
-- [ ] Release notes explain the pixiv Referer on the extension's own original request (and its narrow scope), that live Metadata inside pixiv pages was verified manually, and the local-file route for failures.
-- [ ] Build with `npm run zip` / `npm run zip:edge` from a clean checkout; attach SHA-256 of the zips.
-- [ ] Explicit maintainer approval for tagging and publishing.
+- [ ] Release notes: what is synthetic and what is live-verified, the pixiv Referer on the extension's own original request (scope and permission), the local-file route, and that signatures are not verified.
+- [ ] `npm run zip` / `npm run zip:edge` from a clean checkout; attach SHA-256 values; explicit maintainer approval to tag and publish.
 
-## Before the Chrome Web Store
+## Chrome Web Store
 - [ ] All packaged-release items.
-- [ ] Public privacy policy URL (can be based on `docs/PRIVACY.md`) and data-use disclosures (no data collected).
-- [ ] Single-purpose description; justification for the two host permissions.
-- [ ] Store screenshots from synthetic pages only; 128 px icon (provided in `public/icon/`).
-- [ ] Review use of the third-party name "pixiv" in the extension name and listing, and pixiv's terms, for the shipped UX.
-- [ ] Decide whether a listing is appropriate while the **Metadata** fetch fails on real pixiv by policy.
+- [ ] Public privacy policy URL (based on [PRIVACY.md](PRIVACY.md)); data-use disclosure (no data collected).
+- [ ] Single-purpose description; justification for both host permissions and `declarativeNetRequestWithHostAccess` (the pixiv Referer on the extension's own original request).
+- [ ] Review use of "pixiv" in the name and listing, and pixiv's terms, including the Referer approach.
+- [ ] Store screenshots from synthetic pages only (icons are in `public/icon/`).
+- [ ] Optional: results of #12, to set expectations in the listing.

@@ -1,57 +1,43 @@
 # Implementation status and backlog
 
-更新: 2026-11-19。完了済みの変更は[CHANGELOG.md](../CHANGELOG.md)、検証状況は[TEST_STATUS.md](TEST_STATUS.md)を参照してください。
+更新: 2026-11-22。完了済みの変更は[CHANGELOG.md](../CHANGELOG.md)、検証状況は[TEST_STATUS.md](TEST_STATUS.md)、公開手順は[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)を参照してください。
 
 ## 現在地
 
 | 領域 | 実装・合成試験 | 実pixiv |
 |---|---|---|
-| ホバー・複数枚・キーボード | 完了 | NOT VERIFIED（自動ブラウザはCloudflare確認画面で停止） |
-| pages API | 完了（形状は実測と一致） | HTTP層のみ確認（200） |
-| 原寸の明示取得 | 完了（Worker・制限・取消・cooldown・限定的なReferer付与） | Workerからの取得で200（2026-11-22）。実ページ上の操作は未確認 |
-| ローカルファイル検査 | 完了 | 端末内処理のため実サイト非依存 |
-| PNGテキスト / Stealth / V4キャラクター / JPEG・WebP EXIF | 完了（参照fixtureで照合） | 実際の生成画像では未照合 |
+| ホバー・複数枚・キーボード・通信量の抑制（#14） | 完了 | NOT VERIFIED（自動ブラウザはCloudflareの確認画面で停止。#11） |
+| pages API | 完了（形状は実測と一致） | HTTP層で200 |
+| 原寸の明示取得（#9: 拡張自身の要求だけにpixivのReferer） | 完了 | Workerからの取得で200（2026-11-22）。実ページ上の操作は未確認（#11） |
+| ローカルファイル検査（パネル内・独立ページ #15） | 完了 | 端末内処理のため実サイト非依存 |
+| PNGテキスト / Stealth（行上限 #10） / V4キャラクター / JPEG・WebP EXIF（#13） | 完了（参照fixtureで照合） | 実際の生成画像・投稿後の残存は未照合（#12） |
 | NovelAI電子署名の検証 | 未実装 | — |
 
-## バックログ（Issue化しやすい形）
+## 未解決のGitHub Issue（人の作業が必要）
 
-以下はリポジトリ外への作成は行っていません。必要に応じてIssueへ転記してください。
+- **#11 実pixivの一覧・作品ページでの手動受入**: [MANUAL_TESTS.md](MANUAL_TESTS.md)の1〜10を、ログアウト・ログインの両方で記録します。検出されないカードは、同ファイルのスニペットで合成fixtureにして`tests/thumbnail.test.ts`へ追加します。実Edge・最小対応版120もここで確認します。
+- **#12 pixiv投稿後のメタデータ残存性**: 自分が権利を持つ画像で、[MANUAL_TESTS.md](MANUAL_TESTS.md)の手順と表に従って測ります。結果により、READMEの説明と機能の優先順位を見直します。
 
-### 1. 実機受入（通常のChrome）— `live`, `release-blocker`
-- 背景: 自動ブラウザはdocumentでCloudflareの確認画面（`cf-mitigated: challenge`）になるため、実一覧での動作は人の操作で確認する必要があります。
-- 受入条件: [MANUAL_TESTS.md](MANUAL_TESTS.md)の1〜9を、ログアウト・ログイン両方で記録すること。特に、プレビュー`<img>`が実タブで表示されること、各一覧ページでサムネイルが検出されること（検出されないDOM構造は個人情報を除いて記録）、Metadataで403の説明とローカル導線が出ること、ローカルファイル検査の結果が独立したreaderと一致すること。
+解決済み: #9 #10 #13 #14 #15 #16 #17（2026-11-22のPR）。
 
-### 2. 実Edge・最小対応版（120）— `live`
-- 受入条件: Edge stableとChrome/Edge 120系で、ホバー・Metadata・ローカル検査・Stealth fixtureの読込が動作すること（`color-mix()`等のCSSを含む）。
+## Issue未作成のバックログ
 
-### 3. NovelAI電子署名の検証 — `feature`, `needs-test-vector`
-- 背景: 公式`nai_sig.py`は、`signed_hash`を除いたCommentのPython `json.dumps`の出力と画素バイト列（RGB、またはアルファLSBを消したRGBA）を連結し、組み込みの公開鍵でEd25519検証します。
-- 必要なこと: (a) Pillowと同一の画素バイト列の復元（16-bit・パレット・インターレースの扱いを含む）、(b) Python `json.dumps`とバイト単位で一致するシリアライズ、(c) Ed25519（WebCryptoの対応ブラウザ版の確認、または監査済みの実装）、(d) 公開鍵の出所の記録、(e) **正当な署名付き画像による正例**（NovelAIの提供またはライセンス確認済みの画像）と、改変・署名欠落・偽装の負例。
-- 受入条件: 公式スクリプトとブラウザ実装が、同じ画像集合で一致すること。正例がない間は`verified`を表示しない。
+必要になったらIssueへ転記してください（リポジトリ外への作成はしていません）。
 
-### 4. Stealthの対応形式の拡大 — `feature`
-- 対象: 16-bit RGBA、Adam7インターレース、パレット+tRNS、グレー+tRNS。
-- 受入条件: Pillowの`convert('RGBA')`と同じアルファ値になることを、公式readerとの比較fixtureで示すこと。
+1. **NovelAI電子署名の検証**（`feature`, `needs-test-vector`）: 公式`nai_sig.py`は、`signed_hash`を除いたCommentのPython `json.dumps`の出力と画素バイト列（RGB、またはアルファLSBを消したRGBA）を連結し、組み込みの公開鍵でEd25519検証します。次が必要です。
+   - Pillowと同一の画素バイト列の復元
+   - `json.dumps`とバイト単位で一致するシリアライズ
+   - Ed25519の検証手段
+   - 公開鍵の出所の記録
+   - **正当な署名付き画像の正例**と、改変・偽装の負例
 
-### 5. XMPの読み取り — `feature`, `evaluate`
-- 対象: JPEG APP1 XMP、PNG iTXt `XML:com.adobe.xmp`、WebP `XMP `チャンク。
-- 先に、生成ツールがXMPへ生成情報を書く実例（一次資料）を確認すること。XMLは上限付きの単純な抽出に限定し、外部実体を解決しないこと。
-
-### 6. 実DOMに基づくサムネイル検出の回帰fixture — `compat`
-- 受入条件: 実際の一覧のDOM構造（画像・作品名・作者名を合成値に置換したもの）を`tests/thumbnail.test.ts`に追加し、false negativeを再現・修正すること。推測でURL許可範囲を広げないこと。
-
-### 7. 公開準備 — `release`
-- GitHubのprivate vulnerability reportingを有効化。
-- CIの`browser`ジョブはGitHub-hosted runnerで成功済み（2026-11-19）。数回安定したら必須チェックにする。
-- Chrome Web Store: 公開プライバシーポリシーURL、ストア用スクリーンショット（合成）、単一目的の説明、権限の説明、名称に含まれる第三者商標（pixiv）の扱いの確認、pixiv規約の確認。
-
-### 8. 英語UI — `i18n`
-- `_locales`と`browser.i18n`でUI文字列を外部化。判定語彙（メタデータから推定・未検証）の意味を変えないこと。
-
-### 9. 429待機のWorker再起動耐性 — `ops`, `decision-needed`
-- 現状: Workerのcooldownは再起動で失われるが、タブ側でも同じ待機を保持するため、同じタブからは早期の再取得をしない。別タブからは可能。
-- 選択肢: `storage.session`で待機時刻だけを保持（`storage`権限の追加が必要。インストール時の警告はない）。権限を増やす判断が必要なため未実施。
+   正例がない間は`verified`を表示しません。
+2. **Stealthの対応形式の拡大**（`feature`）: 16-bit RGBA、Adam7インターレース、パレット+tRNS、グレー+tRNS。Pillowの`convert('RGBA')`と同じアルファ値になることを、公式readerとの比較fixtureで示します。
+3. **XMPの読み取り**（`feature`, `evaluate`）: JPEG APP1、PNG iTXt `XML:com.adobe.xmp`、WebP `XMP `。生成ツールがXMPに書く実例（一次資料）を先に確認します。外部実体は解決しません。
+4. **英語UI**（`i18n`）: `_locales`と`browser.i18n`で文字列を外部化します。判定語彙の意味は変えません。
+5. **429待機のWorker再起動耐性**（`ops`, `decision-needed`）: 現状はタブ側でも待機を保持するため、同じタブからは早期の再取得をしません。別タブからは可能です。`storage.session`を使うには`storage`権限の追加が必要です。
+6. **CIの`browser`ジョブの必須化**（`ci`）: GitHub-hosted runnerでの成功が続いたら、ルールセットの必須チェックに加えます。
 
 ## 実施しないこと
 
-拡張自身の原寸取得以外へのReferer付与、Origin・その他ヘッダーの変更、CORS応答の書き換え、ページ文脈での原寸バイト取得、Cookie移植、外部proxy、自動再試行、一括ダウンロード、一覧の巡回・先読み。push・公開・リリース・既存プロファイルへのインストールは明示的な依頼があるまで行いません。
+拡張自身の原寸取得以外へのReferer付与、Origin・その他のヘッダーの変更、CORS応答の書き換え、ページ文脈での原寸バイト取得、Cookie移植、外部proxy、自動再試行、一括ダウンロード、一覧の巡回・先読み。push・公開・リリース・既存プロファイルへのインストールは、明示的な依頼があるまで行いません。
