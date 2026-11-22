@@ -16,11 +16,19 @@ Status 2026-11-22. Reasons and evidence are in [TEST_STATUS.md](TEST_STATUS.md#�
 - [x] Locked, exact devDependencies; no runtime dependencies besides the bundled WXT runtime (MIT); no third-party artwork, telemetry or credential handling.
 
 ## Source publication (GitHub)
-- [ ] Maintainer switches the repository to public.
-- [ ] Right after, under Settings → Advanced Security (Code security), enable **Private vulnerability reporting** (public repositories only), **Dependabot alerts**, **Dependabot security updates**, **Secret scanning** and **Push protection**. CodeQL default setup is optional.
-- [ ] Settings → Rules → Rulesets: protect `main` (pull request required, no force push or deletion). Required checks: `Typecheck, unit tests, Chrome/Edge MV3 builds (Node 22)`, `(Node 24)`, `npm audit (high and critical)`, `Secret scan (gitleaks, full history)`. Add the Playwright job once it has stayed stable.
-- [ ] Settings → Actions → General: keep workflow permissions read-only; require approval for fork PR workflows (at least first-time contributors).
-- [ ] Optional: delete old `synthetic-mv3-report` artifacts (raw reports with runner paths and the author email) or let them expire; add a description and topics.
+Applied 2026-11-22 while private:
+- [x] Repository renamed to `marc2825/Pixiv-Metatan` (old URLs redirect); description and topics set; Projects off.
+- [x] Actions: only GitHub-owned actions allowed (`actions/*`, `github/*`); workflow token read-only and unable to approve PRs; fork PR workflows off.
+- [x] Dependabot alerts and Dependabot security updates enabled.
+- [x] Ruleset "Protect main" (active and enforced): no deletion or force push, linear history, pull request required (0 approvals), required checks `Typecheck, unit tests, Chrome/Edge MV3 builds (Node 22)` / `(Node 24)` / `npm audit (high and critical)` / `Secret scan (gitleaks, full history)`. Admins can bypass only when merging a PR.
+- [x] Merge commits disabled (squash/rebase only); head branches deleted on merge.
+- [x] History and local paths reviewed: the only personal data is the author email (accepted), and the old local paths reveal only the public username.
+
+When the maintainer decides to publish:
+- [ ] Switch the repository to public.
+- [ ] Right after, under Settings → Advanced Security (Code security), enable **Private vulnerability reporting**, **Secret scanning** and **Push protection**, which are unavailable while private. CodeQL default setup is optional.
+- [ ] Settings → Actions → General: require approval for fork PR workflows from first-time contributors (public-repository setting).
+- [ ] Optional: enable "Require actions to be pinned to a full-length commit SHA" after confirming Dependabot still runs (GitHub's docs do not say whether its dynamic workflows are exempt); add the Playwright job to the required checks once it has stayed stable; delete old `synthetic-mv3-report` artifacts or let them expire.
 
 ## Packaged development build (GitHub Releases)
 - [ ] #11: manual acceptance in a normal Chrome ([MANUAL_TESTS.md](MANUAL_TESTS.md) 1–10), logged out and logged in. This includes **Metadata on a real pixiv page**; only the worker request path has been verified live so far.
