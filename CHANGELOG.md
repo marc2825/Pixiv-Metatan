@@ -4,6 +4,9 @@ All notable changes. Dates are JST. The project is unreleased; the version stays
 
 ## [Unreleased]
 
+### Rename — 2026-11-22
+- The project is now **Pixiv-Metatan** (メタ探, "metadata detective"; previously "pixiv AI Metadata Inspector"). Renamed throughout: extension name, panel and page titles, npm package `pixiv-metatan`, repository `marc2825/Pixiv-Metatan` (old URLs redirect), internal identifiers (`metatan-*` DOM IDs, `METATAN_CHROME_PATH`) and docs. The manifest description and README now say "unofficial".
+
 ### Issues #9–#17 — 2026-11-22
 - #9 Original Metadata on pixiv: by maintainer decision (following PixivBatchDownloader's approach), the worker's own original request now carries `Referer: https://www.pixiv.net/` via one declarativeNetRequest session rule, scoped to this extension, no tab, GET and `i.pximg.net/img-original/`. No CORS rewriting, no cookies, and pages or other sites are untouched. New permission `declarativeNetRequestWithHostAccess`. Live: 403 without and 200 with the Referer; the production worker fetch returns 200 in Chromium 156.
 - #10 Stealth no longer allocates row buffers for extreme aspect ratios: rows above 1 MiB (`MAX_STEALTH_ROW_BYTES`, 262,144 RGBA px) are checked before allocation and reported as Stealth `not-checked`, while PNG text is still parsed. A synthetic 40,000,000×1 IHDR is covered by a regression test.

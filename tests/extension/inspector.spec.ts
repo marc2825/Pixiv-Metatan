@@ -11,7 +11,7 @@ async function ready(driver: import('./driver').InspectorDriver) {
 
 test('production injection, closed root and real runtime messaging inspect exactly one chosen image', async ({ extension }) => {
   const { page, driver } = await extension.open();
-  expect(await page.evaluate(() => document.getElementById('pami-extension-root')?.shadowRoot)).toBeNull();
+  expect(await page.evaluate(() => document.getElementById('metatan-root')?.shadowRoot)).toBeNull();
   expect(extension.records.map(r => r.kind)).toEqual(['document']);
   await ready(driver); expect(await driver.options()).toHaveLength(2);
   expect(extension.records.filter(r => r.kind === 'original')).toHaveLength(0);

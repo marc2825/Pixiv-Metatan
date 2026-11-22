@@ -6,12 +6,12 @@ export class InspectorDriver {
   private readonly cdp: CDPSession;
   private constructor(page: Page, cdp: CDPSession) { this.page = page; this.cdp = cdp; }
   static async create(context: BrowserContext, page: Page): Promise<InspectorDriver> {
-    await page.waitForSelector('#pami-extension-root', { state: 'attached', timeout: 10_000 });
+    await page.waitForSelector('#metatan-root', { state: 'attached', timeout: 10_000 });
     return new InspectorDriver(page, await context.newCDPSession(page));
   }
   private async root(): Promise<number> {
     const { root } = await this.cdp.send('DOM.getDocument', { depth: -1, pierce: true });
-    const { nodeId } = await this.cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#pami-extension-root' });
+    const { nodeId } = await this.cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#metatan-root' });
     const { node } = await this.cdp.send('DOM.describeNode', { nodeId, depth: 1, pierce: true });
     const shadow = node.shadowRoots?.[0];
     if (!shadow || shadow.shadowRootType !== 'closed') throw new Error('production-closed-root-missing');

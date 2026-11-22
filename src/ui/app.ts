@@ -14,21 +14,21 @@ export interface AppDependencies {
 }
 
 export function mountInspector(deps: AppDependencies): () => void {
-  if (document.getElementById('pami-extension-root')) return () => {};
+  if (document.getElementById('metatan-root')) return () => {};
   const pageStore = createPageStore(deps.pages ?? getArtworkPages);
   const cooldown = new Cooldown();
-  const host = document.createElement('div'); host.id = 'pami-extension-root';
+  const host = document.createElement('div'); host.id = 'metatan-root';
   const shadow = host.attachShadow({ mode: 'closed' });
   const style = document.createElement('style'); style.textContent = STYLES;
   const button = (label: string, className = '') => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (className) b.className = className; return b; };
-  const toggle = button('AI Metadata', 'toggle'); toggle.setAttribute('aria-controls', 'pami-panel'); toggle.setAttribute('aria-expanded', 'false');
-  const panel = document.createElement('section'); panel.id = 'pami-panel'; panel.className = 'panel'; panel.hidden = true; panel.setAttribute('aria-labelledby', 'pami-title');
+  const toggle = button('AI Metadata', 'toggle'); toggle.setAttribute('aria-controls', 'metatan-panel'); toggle.setAttribute('aria-expanded', 'false');
+  const panel = document.createElement('section'); panel.id = 'metatan-panel'; panel.className = 'panel'; panel.hidden = true; panel.setAttribute('aria-labelledby', 'metatan-title');
   panel.tabIndex = -1; // focus target when the focused control becomes disabled mid-operation
-  const title = document.createElement('h2'); title.id = 'pami-title'; title.textContent = 'pixiv AI Metadata Inspector';
+  const title = document.createElement('h2'); title.id = 'metatan-title'; title.textContent = 'Pixiv-Metatan';
   const intro = document.createElement('p'); intro.className = 'intro';
   intro.textContent = '選んだ1枚だけを、押したときに検査します。画像・結果は外部へ送信・保存しません。原寸を取得できない場合はローカルファイルを検査できます（拡張機能のアイコンからも開けます）。';
-  const label = document.createElement('label'); label.textContent = '検査する画像'; label.htmlFor = 'pami-pages';
-  const select = document.createElement('select'); select.id = 'pami-pages';
+  const label = document.createElement('label'); label.textContent = '検査する画像'; label.htmlFor = 'metatan-pages';
+  const select = document.createElement('select'); select.id = 'metatan-pages';
   const buttons = document.createElement('div'); buttons.className = 'buttons';
   const refresh = button('画像一覧を取得');
   const scan = button('元画像を検査', 'primary');

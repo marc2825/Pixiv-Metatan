@@ -15,7 +15,7 @@
 | `npm run test:extension` | PASS — 18 tests | Production MV3 (closed root, runtime messaging, worker, local inspector page) in disposable profiles; all HTTP synthetic ([evidence](evidence/mv3-synthetic-2026-11-22.json)) |
 | `npm audit` | 0 vulnerabilities | devDependencies only |
 | `git diff --check` | PASS | |
-| GitHub Actions CI | PASS | Green on `main` since 2026-11-19 (first run [44462959593](https://github.com/marc2825/pixiv-ai-metadata-inspector/actions/runs/44462959593)). Since PR #8 (run 44846975048), five jobs: verify on Node 22 and 24, `npm audit`, gitleaks, Playwright. Every PR is checked before merge |
+| GitHub Actions CI | PASS | Green on `main` since 2026-11-19 (first run [44462959593](https://github.com/marc2825/Pixiv-Metatan/actions/runs/44462959593)). Since PR #8 (run 44846975048), five jobs: verify on Node 22 and 24, `npm audit`, gitleaks, Playwright. Every PR is checked before merge |
 
 Reference fixtures (`scripts/reference-fixtures.py`) were regenerated with pinned, hash-checked upstream code. NovelAI's official Stealth writer and reader, ComfyUI `SaveImage` and `_create_webp_metadata`, and AUTOMATIC1111 v1.10.1 `save_image_with_geninfo` / `read_info_from_image` all passed their read-backs. The six older fixtures were reproduced byte-for-byte.
 

@@ -1,7 +1,7 @@
 import { test, expect, png } from './fixtures';
 import { previewUrl } from '../fixtures';
 
-const panel = '#pami-preview', scan = '.hover-metadata', output = '.hover-results', counter = '.hover-counter';
+const panel = '#metatan-preview', scan = '.hover-metadata', output = '.hover-results', counter = '.hover-counter';
 
 for (const path of ['/tags/synthetic/artworks', '/ranking.php?mode=daily', '/users/456', '/users/456/bookmarks/artworks', '/bookmark_new_illust.php']) {
   test(`production isolated hover and worker inspection from ${path}`, async ({ extension }) => {
@@ -11,7 +11,7 @@ for (const path of ['/tags/synthetic/artworks', '/ranking.php?mode=daily', '/use
     expect(await driver.text(counter)).toBe('1 / 2');
     expect(extension.records.filter(record => record.kind === 'original')).toHaveLength(0);
     await driver.click('.hover-next'); expect(await driver.text(counter)).toBe('2 / 2');
-    expect(await driver.attribute('#pami-preview img', 'src')).toBe(previewUrl('123', 1));
+    expect(await driver.attribute('#metatan-preview img', 'src')).toBe(previewUrl('123', 1));
     await driver.click(scan); await expect.poll(() => driver.text(output)).toContain('作品 123 / 2枚目');
     expect(extension.records.filter(record => record.kind === 'original')).toMatchObject([{ worker: true, page: 1, status: 200 }]);
     await driver.click('.hover-previous'); expect(await driver.text(output)).toBe('');
@@ -28,7 +28,7 @@ test('installed hover preserves display on worker 403 and accepts a local file w
   const { page, driver } = await extension.openListing();
   await page.locator('#a').hover(); await expect.poll(() => driver.disabled(scan)).toBe(false);
   await driver.click(scan); await expect.poll(() => driver.text(output)).toContain('http-403');
-  expect(await driver.attribute('#pami-preview img', 'src')).toBe(previewUrl());
+  expect(await driver.attribute('#metatan-preview img', 'src')).toBe(previewUrl());
   const chooser = page.waitForEvent('filechooser'); await driver.click('.hover-local');
   await (await chooser).setFiles({ name: 'synthetic.png', mimeType: 'image/png', buffer: Buffer.from(png()) });
   await expect.poll(() => driver.text(output)).toContain('ローカル: synthetic.png');

@@ -1,6 +1,8 @@
-# pixiv AI Metadata Inspector
+# Pixiv-Metatan
 
-pixivの作品サムネイルにマウスを合わせて画像をプレビューし、ユーザーが押したときだけ、そのページの画像に埋め込まれたAI生成メタデータを端末内で表示するChrome / Edge（Manifest V3）拡張です。
+**メタ探（Metatan）** は「メタデータ探偵」の略です。pixivの作品サムネイルにマウスを合わせて画像をプレビューし、ユーザーが押したときだけ、そのページの画像に埋め込まれたAI生成メタデータを端末内で表示するChrome / Edge（Manifest V3）拡張です。
+
+pixiv公式のツールではありません（非公式）。pixiv株式会社とは関係がなく、承認も受けていません。
 
 [English summary](#english-summary) · [検証状況](docs/TEST_STATUS.md) · [プライバシー](docs/PRIVACY.md) · [セキュリティ](SECURITY.md) · [設計](docs/ARCHITECTURE.md)
 
@@ -85,7 +87,7 @@ npm run test:browser      # 合成ページでのUI試験
 npm run test:extension    # 本番MV3ビルドを使い捨てプロファイルで試験（通信はすべて合成）
 ```
 
-LinuxではPlaywrightのブラウザ依存ライブラリが必要です（`npx playwright install --with-deps chromium`）。既存のChromeを使う場合は`PAMI_CHROME_PATH`を指定します。実サイトでの確認は[手動検証手順](docs/MANUAL_TESTS.md)を参照してください。CI（`.github/workflows/ci.yml`）は、型チェック・単体試験（静的なセキュリティガードを含む）・Chrome/Edgeビルド・権限チェック・`npm audit`・gitleaksによる全履歴の秘密情報スキャン・合成ブラウザ試験を、読み取り専用の権限で実行します。
+LinuxではPlaywrightのブラウザ依存ライブラリが必要です（`npx playwright install --with-deps chromium`）。既存のChromeを使う場合は`METATAN_CHROME_PATH`を指定します。実サイトでの確認は[手動検証手順](docs/MANUAL_TESTS.md)を参照してください。CI（`.github/workflows/ci.yml`）は、型チェック・単体試験（静的なセキュリティガードを含む）・Chrome/Edgeビルド・権限チェック・`npm audit`・gitleaksによる全履歴の秘密情報スキャン・合成ブラウザ試験を、読み取り専用の権限で実行します。
 
 参照fixtureの再生成手順は[tests/reference/README.md](tests/reference/README.md)にあります。変更履歴は[CHANGELOG.md](CHANGELOG.md)、未完了の作業は[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)です。
 
@@ -106,6 +108,8 @@ pixivはpixiv株式会社の商標です。本プロジェクトはpixiv、Novel
 ---
 
 ## English summary
+
+**Pixiv-Metatan** (*Metatan* = Japanese "meta-tan", short for *metadata detective*) is an unofficial extension, not affiliated with pixiv Inc.
 
 A Chrome/Edge Manifest V3 extension for pixiv. Hover a thumbnail to preview the artwork (all pages, with wheel/arrow navigation). Press **Metadata** to fetch and parse exactly one original image locally, or inspect a file you saved yourself.
 

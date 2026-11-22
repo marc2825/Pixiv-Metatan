@@ -3,6 +3,6 @@ export default defineConfig({
   testDir: './tests/browser', testMatch: '**/*.spec.ts', workers: 1, timeout: 20_000,
   use: {
     browserName: 'chromium', headless: true, viewport: { width: 1100, height: 850 },
-    launchOptions: process.env.PAMI_CHROME_PATH ? { executablePath: process.env.PAMI_CHROME_PATH } : {},
+    launchOptions: process.env.METATAN_CHROME_PATH ? { executablePath: process.env.METATAN_CHROME_PATH } : {},
   },
 });

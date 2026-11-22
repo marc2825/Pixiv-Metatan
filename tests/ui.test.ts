@@ -26,7 +26,7 @@ afterEach(() => { destroy?.(); vi.restoreAllMocks(); document.body.replaceChildr
 describe('synthetic pixiv DOM integration', () => {
   it('injects once and performs no fetch on mount; requires explicit Inspect', async () => {
     const deps = mount(); mountInspector(deps);
-    expect(document.querySelectorAll('#pami-extension-root')).toHaveLength(1); expect(deps.pages).not.toHaveBeenCalled(); expect(deps.send).not.toHaveBeenCalled();
+    expect(document.querySelectorAll('#metatan-root')).toHaveLength(1); expect(deps.pages).not.toHaveBeenCalled(); expect(deps.send).not.toHaveBeenCalled();
     await open(); expect(deps.pages).toHaveBeenCalledOnce(); expect(deps.send).not.toHaveBeenCalled();
     const select = shadow.querySelector('select')!; select.value = '1'; select.dispatchEvent(new Event('change'));
     button('元画像を検査').click(); button('元画像を検査').click();
@@ -95,12 +95,12 @@ describe('synthetic pixiv DOM integration', () => {
     button('AI Metadata').click();
     await vi.waitFor(() => expect(deps.pages).toHaveBeenCalledOnce());
     destroy(); pending.resolve(pages);
-    expect(document.getElementById('pami-extension-root')).toBeNull(); expect(vi.mocked(deps.pages).mock.calls[0]?.[1]?.aborted).toBe(true);
+    expect(document.getElementById('metatan-root')).toBeNull(); expect(vi.mocked(deps.pages).mock.calls[0]?.[1]?.aborted).toBe(true);
   });
   it('retains the mount after BFCache but discards candidates and results', async () => {
     const deps = mount(); await open();
     window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
-    expect(document.getElementById('pami-extension-root')).not.toBeNull();
+    expect(document.getElementById('metatan-root')).not.toBeNull();
     expect(shadow.querySelector('select')!.options).toHaveLength(0);
     expect(shadow.querySelector('section')!.hidden).toBe(true);
     button('AI Metadata').click(); await vi.waitFor(() => expect(deps.pages).toHaveBeenCalledTimes(2));
