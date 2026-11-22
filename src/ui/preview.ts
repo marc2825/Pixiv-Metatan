@@ -96,7 +96,7 @@ export function mountHoverPreview(shadow: ShadowRoot, deps: AppDependencies, onO
   function hide(returnFocus = false) {
     const anchor = target?.anchor;
     clearOpen(); clearClose(); cancelPending();
-    panel.hidden = true; pointerInPanel = false; pointerAnchor = undefined;
+    panel.hidden = true; pointerInPanel = false; pointerAnchor = undefined; deferred = false;
     target = undefined; pages = []; output.replaceChildren(); imageSlot.replaceChildren();
     info.textContent = ''; file.value = ''; wheel.reset();
     if (returnFocus && anchor?.isConnected) { suppressFocus = true; anchor.focus(); suppressFocus = false; }
