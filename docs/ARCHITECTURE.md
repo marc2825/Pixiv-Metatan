@@ -61,7 +61,7 @@ inspectImage (src/metadata, pixiv/UIから独立)
 
 - **PNGテキスト**（png.ts）: シグネチャ、IHDR/PLTE/IDAT/IEND の順序、CRC、未知の必須チャンク、キーワード規則、Latin-1/UTF-8（BOMを保持）、zlibの上限付き展開、重複キー（RAWに保持し判定から除外）。IDATは展開しません。
 - **Stealth**（stealth.ts）: NovelAI公式`nai_meta.py`と同じく、アルファのLSBを**列優先**で読み、MSB優先でバイト化します。`stealth_pngcomp`（15バイト）+ ビット長（uint32 BE）+ gzip(JSON)。8-bit・非インターレースのRGBA / グレー+アルファだけを、IDATを4 KiBずつ展開しながら1行ずつ逆フィルタして読みます。画像の高さが120px以上なら先頭120行でmagicの有無が決まるため、Stealthのない画像はそこで終了します。アルファのない画像は`not-present`、16-bit・インターレース・パレット+tRNSは`not-checked`です。非圧縮の`stealth_pnginfo`は検出のみで、内容は読みません。
-- **EXIF**（exif.ts）: JPEGはSOSまでのAPP1 `Exif\0\0`、WebPは最初の`EXIF`チャンク（`Exif\0\0`前置ありにも対応）。TIFFのIFD0（ImageDescription/Make/Model/Software/Artist）とExif IFDのUserComment（UNICODEはTIFFのバイト順、ASCII、JIS、未定義）だけを読みます。ComfyUIの`prompt:`/`workflow:`はIFD0の0x0100–0x0110だけで認識します。
+- **EXIF**（exif.ts）: JPEGはSOSまでのAPP1 `Exif\0\0`、WebPは最初の`EXIF`チャンク（`Exif\0\0`前置ありにも対応）。TIFFのIFD0（ImageDescription/Make/Model/Software/Artist）とExif IFDのUserComment（UNICODEはTIFFのバイト順、ASCII、JIS、未定義）だけを読みます。IFDの件数と各エントリのヘッダーは常に検証し、値のサイズ・オフセットは読む対象のタグだけで検証します。無関係なタグ（大きなMakerNoteなど）は読まずに飛ばし、対象タグの不正は従来どおり拒否します。対象タグが重複した場合は最初の値を判定に使い、注記します。ComfyUIの`prompt:`/`workflow:`はIFD0の0x0100–0x0110だけで認識します。
 - **分類**（normalize.ts）: NovelAIはSoftwareの自己申告が前提です（Description、Source、Comment、1段のComment envelope、V4/V4.5の`v4_prompt`/`v4_negative_prompt`は公式APIスキーマに一致する場合だけ）。ComfyUIはノード構造、A1111/Forgeは最終行の`Steps:`形式です。PNGテキストとStealthの両方がある場合はテキスト側を表示し、Stealthにだけある項目を補い、値の不一致は注記します。
 - **判定の語彙**: `metadata-indicates`（メタデータから推定）。署名は`not-checked`（記載あり・未検証）/`not-present`。`verified`/`invalid`を生成する実装はありません。
 - **上限**: 48 MiB、40百万画素、4096チャンク、テキスト128件・2 MiB、JSON深さ64・50,000値、Stealth圧縮1 MiB・1行1 MiB・展開2 MiB、Stealthキー128、EXIF IFD 512項目。

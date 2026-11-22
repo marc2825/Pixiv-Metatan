@@ -144,6 +144,46 @@ describe('EXIF text for JPEG/WebP', () => {
     const loop = tiff('MM', [], [{ tag: 0x8769, type: 4, value: new Uint8Array(4) }]);
     expect(() => parseExifText(loop)).not.toThrow();
   });
+  it('extracts generation text next to huge or broken unrelated tags (issue #13)', async () => {
+    const hostile = [
+      { tag: 0x927c, type: 7, value: new Uint8Array(), raw: { count: 0x7fffffff, offset: 0xfffffff0 } }, // MakerNote: huge, out of range
+      { tag: 0xa420, type: 2, value: new Uint8Array(), raw: { count: 64, offset: 0xffffff00 } }, // ImageUniqueID: broken offset
+      { tag: 0x9999, type: 99, value: new Uint8Array(), raw: { count: 1, offset: 0 } }, // unknown type
+    ];
+    const ifd0Noise = [{ tag: 0x0111, type: 4, value: new Uint8Array(), raw: { count: 100_000, offset: 0xfffffff0 } }]; // StripOffsets
+    for (const order of ['MM', 'II'] as const) {
+      const exif = tiff(order, [...ifd0Noise, { tag: 0x0131, type: 2, value: asciiValue('Synthetic Tool') }], [...hostile, { tag: 0x9286, type: 7, value: userComment(parameters, 'UNICODE', order === 'II') }]);
+      for (const bytes of [jpeg(exif), webp(exif)]) {
+        const result = await inspectImage(bytes);
+        expect(result).toMatchObject({ status: 'found', generator: 'a1111-forge' });
+        expect(result.fields).toMatchObject({ prompt: 'cat', negative: 'dog', steps: '20' });
+        expect(result.rawTextChunks['Exif.Software']).toBe('Synthetic Tool');
+      }
+    }
+  });
+  it('still rejects broken target tags and IFD structure (issue #13)', () => {
+    const broken = (entry: object) => tiff('MM', [], [{ tag: 0x9286, type: 7, value: new Uint8Array(), ...entry }]);
+    expect(() => parseExifText(broken({ raw: { count: 64, offset: 0xfffffff0 } }))).toThrow('malformed-exif-offset');
+    expect(() => parseExifText(broken({ raw: { count: 3 * 1024 * 1024, offset: 8 } }))).toThrow('text-too-large');
+    expect(() => parseExifText(tiff('MM', [{ tag: 0x0131, type: 2, value: new Uint8Array(), raw: { count: 32, offset: 0x7fffffff } }]))).toThrow('malformed-exif-offset');
+    const badPointer = tiff('MM', [{ tag: 0x8769, type: 4, value: new Uint8Array(), raw: { count: 2, offset: 0xfffffff0 } }]);
+    expect(() => parseExifText(badPointer)).toThrow();
+    const truncated = tiff('MM', [{ tag: 0x0131, type: 2, value: asciiValue('x') }]).slice(0, 12); // header claims 1 entry
+    expect(() => parseExifText(truncated)).toThrow('malformed-exif-ifd');
+  });
+  it('follows an Exif IFD pointer stored as TIFF type IFD (13)', () => {
+    const exif = tiff('II', [], [{ tag: 0x9286, type: 7, value: userComment('p\nSteps: 3', 'ASCII') }]);
+    const view = new DataView(exif.buffer); const at = 8 + 2; // first IFD0 entry is the pointer added by tiff()
+    expect(view.getUint16(at, true)).toBe(0x8769); view.setUint16(at + 2, 13, true);
+    expect(parseExifText(exif).classify.parameters).toBe('p\nSteps: 3');
+  });
+  it('uses the first of duplicated target tags and notes it (issue #13)', () => {
+    const exif = parseExifText(tiff('MM', [{ tag: 0x0131, type: 2, value: asciiValue('First') }, { tag: 0x0131, type: 2, value: asciiValue('Second') }],
+      [{ tag: 0x9286, type: 7, value: userComment('first\nSteps: 1', 'ASCII') }, { tag: 0x9286, type: 7, value: userComment('second\nSteps: 2', 'ASCII') }]));
+    expect(exif.classify).toMatchObject({ Software: 'First', parameters: 'first\nSteps: 1' });
+    expect(exif.entries.map(entry => entry.value)).toEqual(['First', 'Second', 'first\nSteps: 1', 'second\nSteps: 2']);
+    expect(exif.notes.join(' ')).toContain('Softwareが重複'); expect(exif.notes.join(' ')).toContain('UserCommentが重複');
+  });
   it('locates EXIF only before SOS and in the first EXIF chunk', () => {
     expect(jpegExif(jpeg())).toBeUndefined();
     expect(webpExif(webp())).toBeUndefined();
