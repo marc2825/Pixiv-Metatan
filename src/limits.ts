@@ -5,6 +5,11 @@ export const MAX_PAGES = 1000;
 export const TIMEOUT_MS = 15_000;
 /** Compressed NovelAI stealth payload cap (decompressed text still uses MAX_TEXT_BYTES). */
 export const MAX_STEALTH_BYTES = 1024 * 1024;
+/**
+ * Stealth decodes one PNG row at a time (two row buffers). MAX_PIXELS alone still allows e.g.
+ * 40,000,000 x 1 RGBA (~160 MB per row), so rows above 1 MiB (262,144 RGBA pixels) are not decoded.
+ */
+export const MAX_STEALTH_ROW_BYTES = 1024 * 1024;
 
 export class InspectionError extends Error {
   /** `detail` is optional untrusted server text, length-limited and rendered as plain text only. */

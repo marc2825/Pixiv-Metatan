@@ -1,4 +1,4 @@
-import { InspectionError, MAX_STEALTH_BYTES, MAX_TEXT_BYTES, readBounded } from '../limits';
+import { InspectionError, MAX_STEALTH_BYTES, MAX_STEALTH_ROW_BYTES, MAX_TEXT_BYTES, readBounded } from '../limits';
 import { isRecord, parseMetadataJson } from './json';
 import type { StealthState } from './types';
 
@@ -81,6 +81,8 @@ export async function readStealth(png: PngLayout, signal?: AbortSignal): Promise
 
   const channels = png.colorType === 6 ? 4 : 2;
   const rowBytes = width * channels, stride = rowBytes + 1;
+  // Checked before any allocation: extreme aspect ratios pass MAX_PIXELS but need huge row buffers.
+  if (!Number.isSafeInteger(rowBytes) || rowBytes > MAX_STEALTH_ROW_BYTES) return { state: 'not-checked', reason: 'stealth-row-too-large' };
   const maxBits = Math.min(totalBits, (HEADER_BYTES + MAX_STEALTH_BYTES) * 8);
   const columns = Math.min(width, Math.ceil(maxBits / height));
   const bits = new Uint8Array(Math.ceil((columns * height) / 8));

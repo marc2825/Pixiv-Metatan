@@ -23,6 +23,7 @@ const STEALTH_REASONS: Record<string, string> = {
   'stealth-truncated': 'Stealthの長さ情報が画像に収まりません。破損または別形式のため未解析です。',
   'stealth-invalid-gzip': 'Stealthの圧縮データを展開できませんでした。破損または別形式のため未解析です。',
   'stealth-too-many-keys': 'Stealthデータの項目数が上限を超えるため未解析です。',
+  'stealth-row-too-large': '画像の幅が安全上限（1行1 MiB、RGBAで262,144px）を超えるため、Stealth（アルファチャンネル）は未検査です。通常テキストは解析済みです。',
 };
 const stealthNote = (stealth: StealthResult) => stealth.state === 'not-checked'
   ? STEALTH_REASONS[stealth.reason ?? ''] ?? `Stealth（アルファチャンネル）は画像データを読めないため未検査です: ${stealth.reason ?? 'unknown'}`
