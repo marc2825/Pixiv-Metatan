@@ -1,6 +1,6 @@
 # 要件定義 — pixiv AI Metadata Inspector
 
-更新: 2026-11-19。検証状況は[TEST_STATUS.md](TEST_STATUS.md)、未完了の作業は[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)。
+更新: 2026-11-22。検証状況は[TEST_STATUS.md](TEST_STATUS.md)、未完了の作業は[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)。
 
 ## 目的・対象
 
