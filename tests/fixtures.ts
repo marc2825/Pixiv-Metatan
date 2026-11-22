@@ -83,7 +83,8 @@ export function stealthPng(width: number, height: number, stream: Uint8Array, op
   return concat(pngSignature, ihdr(width, height, 8, options.color ?? 6), ...(options.extra ?? []), chunk('IDAT', deflateSync(concat(...rows))), chunk('IEND'));
 }
 
-export interface IfdEntry { tag: number; type: number; value: Uint8Array }
+/** `raw` writes the count/offset fields verbatim with no data (for hostile or broken entries). */
+export interface IfdEntry { tag: number; type: number; value: Uint8Array; raw?: { count: number; offset: number } }
 /** Minimal TIFF writer: IFD0 entries plus an optional Exif IFD (pointer added automatically). */
 export function tiff(order: 'II' | 'MM', ifd0: IfdEntry[], exif?: IfdEntry[]): Uint8Array<ArrayBuffer> {
   const le = order === 'II';
@@ -98,8 +99,9 @@ export function tiff(order: 'II' | 'MM', ifd0: IfdEntry[], exif?: IfdEntry[]): U
     view.setUint16(at, entries.length, le);
     entries.forEach((entry, i) => {
       const e = at + 2 + i * 12;
-      const unit = ({ 1: 1, 2: 1, 3: 2, 4: 4, 7: 1 } as Record<number, number>)[entry.type]!;
+      const unit = ({ 1: 1, 2: 1, 3: 2, 4: 4, 7: 1, 13: 4 } as Record<number, number>)[entry.type]!;
       view.setUint16(e, entry.tag, le); view.setUint16(e + 2, entry.type, le); view.setUint32(e + 4, entry.value.length / unit, le);
+      if (entry.raw) { view.setUint32(e + 4, entry.raw.count, le); view.setUint32(e + 8, entry.raw.offset, le); return; }
       let value = entry.value;
       if (entry.tag === 0x8769) { value = new Uint8Array(4); new DataView(value.buffer).setUint32(0, exifAt, le); }
       if (value.length <= 4) out.set(value, e + 8);
