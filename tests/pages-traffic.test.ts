@@ -49,9 +49,9 @@ async function run(steps: Step[], options: { latency?: number; cards?: number; r
   }
   // Stay on the last card until its page list is shown (or give up after 5 s).
   const last = [...steps].reverse().find((step): step is { card: number; dwell: number } => 'card' in step)!;
-  const counter = () => root.querySelector('#pami-preview .hover-counter')?.textContent;
+  const counter = () => root.querySelector('#metatan-preview .hover-counter')?.textContent;
   let waited = 0;
-  const shown = () => counter() === '1 / 3' && root.querySelector('#pami-preview h2')?.textContent === `Card ${last.card}`;
+  const shown = () => counter() === '1 / 3' && root.querySelector('#metatan-preview h2')?.textContent === `Card ${last.card}`;
   while (!shown() && waited < 5000) { await vi.advanceTimersByTimeAsync(10); waited += 10; }
   return { requests, aborted, finalMs: shown() ? last.dwell + waited : null };
 }

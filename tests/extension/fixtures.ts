@@ -17,14 +17,14 @@ export interface TestExtension {
 
 export const test = base.extend<{ extension: TestExtension }>({
   extension: async ({}, use, testInfo) => {
-    const profile = await mkdtemp(join(tmpdir(), 'pami-mv3-test-'));
+    const profile = await mkdtemp(join(tmpdir(), 'metatan-mv3-test-'));
     let context: BrowserContext | undefined;
     try {
       const path = resolve('.output/chrome-mv3');
       const extensionArtifacts: Record<string, string> = {};
       for (const file of ['manifest.json', 'background.js', 'content-scripts/pixiv.js']) extensionArtifacts[file] = createHash('sha256').update(await readFile(join(path, file))).digest('hex');
       context = await chromium.launchPersistentContext(profile, {
-        ...(process.env.PAMI_CHROME_PATH ? { executablePath: process.env.PAMI_CHROME_PATH } : { channel: 'chromium' }),
+        ...(process.env.METATAN_CHROME_PATH ? { executablePath: process.env.METATAN_CHROME_PATH } : { channel: 'chromium' }),
         headless: true, viewport: { width: 1100, height: 850 },
         args: [`--disable-extensions-except=${path}`, `--load-extension=${path}`],
       });

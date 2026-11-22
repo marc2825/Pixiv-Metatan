@@ -3,7 +3,7 @@ import { createInspector, type InspectRequest, type CancelRequest } from '../../
 
 // Test-only adapter. No extension is installed; network is intercepted by Playwright.
 const messages: (InspectRequest | CancelRequest)[] = [];
-Object.assign(window, { pamiTestMessages: messages });
+Object.assign(window, { metatanTestMessages: messages });
 const inspector = createInspector({ extensionId: 'synthetic-extension', tabUrl: async () => location.href });
 mountInspector({ send: async message => {
   messages.push(message);

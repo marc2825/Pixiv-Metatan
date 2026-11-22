@@ -3,7 +3,7 @@ import { manifestProblems } from '../scripts/manifest-policy';
 
 // Mirrors the WXT output for this project (checked against the real build by `npm run check:manifest`).
 const good = () => ({
-  manifest_version: 3, name: 'pixiv AI Metadata Inspector', description: 'x', version: '0.1.0',
+  manifest_version: 3, name: 'Pixiv-Metatan', description: 'x', version: '0.1.0',
   icons: { 16: 'icon/16.png', 128: 'icon/128.png' }, minimum_chrome_version: '120',
   permissions: ['declarativeNetRequestWithHostAccess'], host_permissions: ['https://www.pixiv.net/*', 'https://i.pximg.net/*'],
   background: { service_worker: 'background.js' },

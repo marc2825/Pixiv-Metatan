@@ -1,4 +1,4 @@
-# AGENTS.md — pixiv AI Metadata Inspector
+# AGENTS.md — Pixiv-Metatan
 
 Rules for coding agents working in this repository. Keep changes small, tested and honest about what was verified.
 

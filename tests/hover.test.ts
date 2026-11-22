@@ -19,7 +19,7 @@ function mount(overrides: Partial<AppDependencies> = {}) {
   const deps = { send: vi.fn().mockResolvedValue(emptyResult('found', ['synthetic result'])), pages: vi.fn().mockImplementation(async (id: string) => list(id)), ...overrides };
   destroy = mountInspector(deps); return deps;
 }
-const panel = () => root.querySelector<HTMLElement>('#pami-preview')!;
+const panel = () => root.querySelector<HTMLElement>('#metatan-preview')!;
 const control = (selector: string) => panel().querySelector<HTMLButtonElement>(selector)!;
 const enter = (anchor: HTMLAnchorElement) => anchor.querySelector('img')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 const leave = (anchor: HTMLAnchorElement, relatedTarget: EventTarget | null = null) => anchor.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget }));
@@ -104,8 +104,8 @@ describe('delegated hover preview', () => {
     mount({ pages }); await open(card());
     root.querySelector<HTMLButtonElement>('.toggle')!.click(); await vi.advanceTimersByTimeAsync(0);
     expect(pages).toHaveBeenCalledOnce();
-    expect(root.querySelector<HTMLButtonElement>('#pami-panel .buttons > button')!.disabled).toBe(limited);
-    if (limited) expect(root.querySelector('#pami-panel')?.textContent).toContain('pixiv-pages-http-429');
+    expect(root.querySelector<HTMLButtonElement>('#metatan-panel .buttons > button')!.disabled).toBe(limited);
+    if (limited) expect(root.querySelector('#metatan-panel')?.textContent).toContain('pixiv-pages-http-429');
   });
   it('reuses per-page results and never automatically inspects when changing pages', async () => {
     const deps = mount(); await open(card()); control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
@@ -203,9 +203,9 @@ describe('delegated hover preview', () => {
   it('uses one shared ticker and re-attaches the UI if the page removes it', async () => {
     const interval = vi.spyOn(window, 'setInterval');
     mount(); expect(interval).toHaveBeenCalledOnce();
-    document.getElementById('pami-extension-root')!.remove();
+    document.getElementById('metatan-root')!.remove();
     await vi.advanceTimersByTimeAsync(300);
-    expect(document.getElementById('pami-extension-root')?.isConnected).toBe(true);
+    expect(document.getElementById('metatan-root')?.isConnected).toBe(true);
     await open(card()); expect(panel().hidden).toBe(false);
   });
   it('renders hostile titles and author names from the page as text only', async () => {

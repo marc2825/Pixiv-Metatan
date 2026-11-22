@@ -39,7 +39,7 @@ const evidence: Evidence = {
   signedIn: false, credentialsImported: false, interception: false, imageBytesStored: false,
   targetType: artwork ? 'artwork' : 'home', page: pageIndex, checks, network: [], originalRequests: 0, notes: [],
 };
-const profile = await mkdtemp(join(tmpdir(), 'pami-live-dev-'));
+const profile = await mkdtemp(join(tmpdir(), 'metatan-live-dev-'));
 let context: BrowserContext | undefined;
 
 async function waitFor<T>(read: () => Promise<T>, accept: (value: T) => boolean, timeout = 18_000): Promise<T> {
@@ -101,7 +101,7 @@ try {
   const extension = resolve('.output/chrome-mv3');
   for (const file of ['manifest.json', 'background.js', 'content-scripts/pixiv.js']) evidence.extensionArtifacts[file] = createHash('sha256').update(await readFile(join(extension, file))).digest('hex');
   context = await chromium.launchPersistentContext(profile, {
-    ...(process.env.PAMI_CHROME_PATH && values.browser === 'chromium' ? { executablePath: process.env.PAMI_CHROME_PATH } : { channel: values.browser }),
+    ...(process.env.METATAN_CHROME_PATH && values.browser === 'chromium' ? { executablePath: process.env.METATAN_CHROME_PATH } : { channel: values.browser }),
     headless: !values.headed,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
   });

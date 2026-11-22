@@ -65,7 +65,7 @@ test('hover opens a multipage preview, stays open during transfer, uses wheel/bu
 
 test('original 403 preserves display and enables an explicit local-file fallback in preview', async ({ page }) => {
   const requests = await start(page, { imageStatus: 403 }); await page.locator('#a').hover();
-  const preview = page.locator('#pami-preview');
+  const preview = page.locator('#metatan-preview');
   await preview.getByRole('button', { name: 'Metadata', exact: true }).click();
   await expect(preview).toContainText('http-403');
   await expect(preview.locator('img')).toBeVisible();
@@ -78,14 +78,14 @@ test('original 403 preserves display and enables an explicit local-file fallback
 
 test('rapid hover, leaving, and SPA changes suppress stale artwork and requests', async ({ page }) => {
   const requests = await start(page, { apiDelay: 500 });
-  await page.locator('#a').hover(); await expect(page.locator('#pami-preview')).toBeVisible();
-  await page.locator('#b').hover(); await expect(page.locator('#pami-preview h2')).toHaveText('Synthetic artwork 456');
+  await page.locator('#a').hover(); await expect(page.locator('#metatan-preview')).toBeVisible();
+  await page.locator('#b').hover(); await expect(page.locator('#metatan-preview h2')).toHaveText('Synthetic artwork 456');
   await expect(page.locator('.hover-counter')).toHaveText('1 / 3');
-  await expect(page.locator('#pami-preview img')).toHaveAttribute('src', previewUrl('456'));
-  await page.mouse.move(10, 10); await expect(page.locator('#pami-preview')).toBeHidden();
-  await page.locator('#b').hover(); await expect(page.locator('#pami-preview')).toBeVisible();
+  await expect(page.locator('#metatan-preview img')).toHaveAttribute('src', previewUrl('456'));
+  await page.mouse.move(10, 10); await expect(page.locator('#metatan-preview')).toBeHidden();
+  await page.locator('#b').hover(); await expect(page.locator('#metatan-preview')).toBeVisible();
   await page.evaluate(() => history.pushState({}, '', '/users/789/bookmarks/artworks'));
-  await expect(page.locator('#pami-preview')).toBeHidden();
+  await expect(page.locator('#metatan-preview')).toBeHidden();
   expect(originals(requests)).toHaveLength(0);
 });
 
@@ -93,7 +93,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test(`viewport edge and narrow ${colorScheme} preview retains accessible single-page controls`, async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 640 }); await page.emulateMedia({ colorScheme });
     const requests = await start(page, { count: 1, edge: true }); await page.locator('#a').focus();
-    const preview = page.locator('#pami-preview'); await expect(preview).toBeVisible();
+    const preview = page.locator('#metatan-preview'); await expect(preview).toBeVisible();
     await expect(preview.locator('.hover-counter')).toHaveText('1 / 1');
     await page.keyboard.press('ArrowDown'); await expect(preview.locator('.preview-stage')).toBeFocused();
     await page.keyboard.press('Tab'); await expect(preview.getByRole('button', { name: 'Metadata', exact: true })).toBeFocused();
@@ -107,9 +107,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
 test('429 pages denial leaves a thumbnail and does not repeat API calls on another hover', async ({ page }) => {
   const requests = await start(page, { apiStatus: 429 }); await page.locator('#a').hover();
-  await expect(page.locator('#pami-preview')).toContainText('pixiv-pages-http-429');
-  await expect(page.locator('#pami-preview img')).toBeVisible();
-  await page.locator('#b').hover(); await expect(page.locator('#pami-preview h2')).toHaveText('Synthetic artwork 456');
-  await expect(page.locator('#pami-preview')).toContainText('pixiv-pages-http-429');
+  await expect(page.locator('#metatan-preview')).toContainText('pixiv-pages-http-429');
+  await expect(page.locator('#metatan-preview img')).toBeVisible();
+  await page.locator('#b').hover(); await expect(page.locator('#metatan-preview h2')).toHaveText('Synthetic artwork 456');
+  await expect(page.locator('#metatan-preview')).toContainText('pixiv-pages-http-429');
   expect(apiRequests(requests)).toHaveLength(1); expect(originals(requests)).toHaveLength(0);
 });

@@ -110,10 +110,10 @@ test('keyboard close and narrow dark layout with synthetic data', async ({ page 
   await page.setViewportSize({ width: 360, height: 640 }); await page.emulateMedia({ colorScheme: 'dark' });
   await start(page); await page.getByRole('button', { name: 'AI Metadata', exact: true }).focus(); await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: 'ローカルファイルを検査', exact: true })).toBeFocused();
-  const box = await page.locator('#pami-panel').boundingBox(); expect(box?.x).toBeGreaterThanOrEqual(0); expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(360);
+  const box = await page.locator('#metatan-panel').boundingBox(); expect(box?.x).toBeGreaterThanOrEqual(0); expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(360);
   await page.getByRole('button', { name: '元画像を検査', exact: true }).click();
   await expect(page.getByLabel('検査結果', { exact: true })).toContainText('未検証');
   await page.screenshot({ path: '.test-browser/synthetic-dark-mobile.png' });
-  await page.keyboard.press('Escape'); await expect(page.locator('#pami-panel')).toBeHidden();
+  await page.keyboard.press('Escape'); await expect(page.locator('#metatan-panel')).toBeHidden();
   await expect(page.getByRole('button', { name: 'AI Metadata', exact: true })).toBeFocused();
 });

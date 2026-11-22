@@ -28,7 +28,7 @@ export function mountHoverPreview(shadow: ShadowRoot, deps: AppDependencies, onO
   const button = (label: string, className = '') => {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.className = className; return b;
   };
-  const panel = document.createElement('section'); panel.id = 'pami-preview'; panel.className = 'hover-panel'; panel.hidden = true;
+  const panel = document.createElement('section'); panel.id = 'metatan-preview'; panel.className = 'hover-panel'; panel.hidden = true;
   panel.tabIndex = -1; // focus target when the focused control becomes disabled mid-operation
   panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', '作品プレビュー');
   const header = document.createElement('div'); header.className = 'hover-header';
