@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountInspector, type AppDependencies } from '../src/ui/app';
+import { SWEEP_API_DELAY_MS } from '../src/ui/preview';
 import { emptyResult, type InspectionResult } from '../src/metadata/types';
 import { InspectionError } from '../src/limits';
 import { RateLimitError } from '../src/network/failures';
@@ -57,9 +58,16 @@ describe('delegated hover preview', () => {
     const deps = mount({ pages }), a = card('123'), b = card('456');
     await open(a); leave(a); await open(b); expect(pages).toHaveBeenCalledTimes(1);
     expect(panel().querySelector('h2')?.textContent).toBe('Artwork 456');
+    // B opened during a sweep: its request waits SWEEP_API_DELAY_MS (issue #14); A's sent request keeps running.
+    await vi.advanceTimersByTimeAsync(SWEEP_API_DELAY_MS); expect(pages).toHaveBeenCalledTimes(2);
+    expect(control('.hover-counter').textContent).toBe('1 / 2');
     resolve(list()); await vi.advanceTimersByTimeAsync(0);
-    expect(pages).toHaveBeenCalledTimes(2); expect(panel().querySelector('img')?.src).toBe(previewUrl('456'));
+    // The late response for A never reaches B's preview...
+    expect(panel().querySelector('img')?.src).toBe(previewUrl('456'));
     expect(control('.hover-counter').textContent).toBe('1 / 2'); expect(deps.send).not.toHaveBeenCalled();
+    // ...but it is cached, so returning to A needs no second request.
+    leave(b); await vi.advanceTimersByTimeAsync(300); await open(a);
+    expect(pages).toHaveBeenCalledTimes(2); expect(control('.hover-counter').textContent).toBe('1 / 3');
   });
   it('keeps page boundaries, consumes a continuous wheel gesture once, and supports arrows/buttons', async () => {
     const deps = mount(), anchor = card(); await open(anchor);
@@ -210,5 +218,16 @@ describe('delegated hover preview', () => {
     expect(panel().querySelectorAll('script')).toHaveLength(0);
     expect([...panel().querySelectorAll('img')].map(img => img.className)).toEqual(['preview-image']);
     expect(panel().querySelector<HTMLAnchorElement>('.hover-meta a')?.href).toBe('https://www.pixiv.net/artworks/123');
+  });
+  it('skips the pages request for cards passed over mid-sweep and loads without delay on return (issue #14)', async () => {
+    const pages = vi.fn().mockImplementation(async (id: string) => list(id));
+    mount({ pages }); const a = card('123'), b = card('456');
+    await open(a); expect(pages).toHaveBeenCalledTimes(1);           // first hover: immediate
+    leave(a, b); enter(b); await vi.advanceTimersByTimeAsync(250);   // sweep: B opens 250 ms after A
+    leave(b, a); enter(a);                                           // pointer moves on before the delay ends
+    await vi.advanceTimersByTimeAsync(SWEEP_API_DELAY_MS);
+    expect(pages).toHaveBeenCalledTimes(1); expect(panel().textContent).toContain('画像一覧の取得を保留しました');
+    leave(a, b); enter(b); await vi.advanceTimersByTimeAsync(0);    // back on B: fetched at once, no new delay
+    expect(pages).toHaveBeenCalledTimes(2); expect(control('.hover-counter').textContent).toBe('1 / 3');
   });
 });

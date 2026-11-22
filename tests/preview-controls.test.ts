@@ -42,6 +42,54 @@ describe('bounded tab caches and API scheduling', () => {
   });
 });
 
+describe('page store: joined, detached and bounded requests (issue #14)', () => {
+  const abortable = () => {
+    const pending = new Map<string, { resolve: () => void; signal: AbortSignal }>();
+    const fetcher = vi.fn((id: string, signal?: AbortSignal) => new Promise<{ page: number; original: string }[]>((resolve, reject) => {
+      pending.set(id, { resolve: () => resolve([{ page: 0, original: originalUrl(id) }]), signal: signal! });
+      signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    }));
+    return { fetcher, pending };
+  };
+  it('joins requests for the same artwork and keeps a sent request alive into the cache when its caller leaves', async () => {
+    const { fetcher, pending } = abortable(); const store = createPageStore(fetcher);
+    const a = new AbortController(), b = new AbortController();
+    const first = store.load('123', a.signal).catch(error => error), second = store.load('123', b.signal);
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    a.abort(); expect(await first).toBeInstanceOf(DOMException); expect(pending.get('123')!.signal.aborted).toBe(false);
+    b.abort(); await expect(second).rejects.toThrow(); expect(pending.get('123')!.signal.aborted).toBe(false);
+    pending.get('123')!.resolve(); await vi.waitFor(() => expect(store.peek('123')).toBeDefined());
+    expect(await store.load('123', new AbortController().signal)).toEqual([{ page: 0, original: originalUrl('123') }]);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+  it('keeps at most one detached request and never sends queued work for callers that left', async () => {
+    const { fetcher, pending } = abortable(); const store = createPageStore(fetcher);
+    const callers = ['1', '2', '3'].map(() => new AbortController());
+    const one = store.load('1', callers[0]!.signal).catch(() => {});
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    const queued = store.load('9', new AbortController().signal); // waits behind the wanted request
+    const skipped = new AbortController(); const never = store.load('8', skipped.signal).catch(() => 'skipped');
+    callers[0]!.abort(); await one;                                 // '1' detaches; queued '9' starts
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    skipped.abort(); expect(await never).toBe('skipped');
+    const two = store.load('2', callers[1]!.signal).catch(() => {});
+    pending.get('9')!.resolve(); await queued;
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+    callers[1]!.abort(); await two;                                 // '2' detaches -> older detached '1' is aborted
+    expect(pending.get('1')!.signal.aborted).toBe(true); expect(pending.get('2')!.signal.aborted).toBe(false);
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual(['1', '9', '2']);
+  });
+  it('clear() aborts everything and drops late results', async () => {
+    const fetcher = vi.fn((_id: string, _signal?: AbortSignal) => new Promise<{ page: number; original: string }[]>(resolve => setTimeout(() => resolve([{ page: 0, original: originalUrl() }]), 5)));
+    const store = createPageStore(fetcher); const caller = new AbortController();
+    const loading = store.load('123', caller.signal);
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    store.clear(); expect(fetcher.mock.calls[0]![1]!.aborted).toBe(true);
+    await loading.catch(() => {}); await new Promise(resolve => setTimeout(resolve, 10));
+    expect(store.peek('123')).toBeUndefined();
+  });
+});
+
 describe('preview controls', () => {
   it('contains every edge placement and flips left when right space runs out', () => {
     const right = previewPosition({ left: 900, right: 1000, top: 700, bottom: 800 }, 440, 500, 1100, 850);
