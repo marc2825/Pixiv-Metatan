@@ -71,4 +71,9 @@ describe('thumbnail detection fixtures (synthetic pixiv-like DOM)', () => {
     const img = document.createElement('img'); img.src = square(); anchor.append(img); document.body.append(anchor);
     expect(thumbnailFromTarget(document.getElementById('x'))).toBeUndefined();
   });
+  it('accepts a card captured with the MANUAL_TESTS sanitizing snippet (issue #11 workflow)', () => {
+    // Exact output of the docs/MANUAL_TESTS.md snippet for a synthetic card (IDs/dates replaced, no text).
+    html('<ul><li><div data-gtm-value=""><a href="/artworks/123"><img src="https://i.pximg.net/c/250x250_80_a2/img-master/img/2026/10/22/00/00/00/123_p0_square1200.jpg"></a><a href="/users/123"></a><img src="https://example.invalid/common/images/no_profile.png"></div></li></ul>');
+    expect(thumbnailFromTarget(document.querySelector('a[href="/artworks/123"] img'))).toMatchObject({ artworkId: '123', title: undefined, author: undefined });
+  });
 });
