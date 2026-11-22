@@ -48,6 +48,14 @@ p{margin:6px 0}
 .hover-results{padding:4px 12px 0}.hover-results:empty{display:none}
 .hover-local{margin:10px 12px 12px}
 
+/* Standalone local inspector page (extension page, issue #15) */
+.local-page{display:block;max-width:760px;margin:32px auto;padding:24px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:14px;font:14px/1.6 system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;overflow-wrap:anywhere}
+.local-page h1{font-size:18px;margin:0 0 6px}.local-page .intro{color:var(--muted);font-size:13px}
+.dropzone{margin:16px 0;padding:28px 16px;border:2px dashed var(--border);border-radius:12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.dropzone p{margin:0;color:var(--muted)}.dropzone.active{border-color:var(--accent);background:var(--ok-bg)}
+.local-status{color:var(--muted);font-size:13px}
+@media (max-width:800px){.local-page{margin:0;border-radius:0;border-left:0;border-right:0}}
+
 /* Results */
 .result-summary{margin:6px 0;line-height:1.7}.result-summary .badge{margin-right:2px}
 .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);border:1px solid var(--border)}

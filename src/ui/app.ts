@@ -26,7 +26,7 @@ export function mountInspector(deps: AppDependencies): () => void {
   panel.tabIndex = -1; // focus target when the focused control becomes disabled mid-operation
   const title = document.createElement('h2'); title.id = 'pami-title'; title.textContent = 'pixiv AI Metadata Inspector';
   const intro = document.createElement('p'); intro.className = 'intro';
-  intro.textContent = '選んだ1枚だけを、押したときに検査します。画像・結果は外部へ送信・保存しません。原寸を取得できない場合はローカルファイルを検査できます。';
+  intro.textContent = '選んだ1枚だけを、押したときに検査します。画像・結果は外部へ送信・保存しません。原寸を取得できない場合はローカルファイルを検査できます（拡張機能のアイコンからも開けます）。';
   const label = document.createElement('label'); label.textContent = '検査する画像'; label.htmlFor = 'pami-pages';
   const select = document.createElement('select'); select.id = 'pami-pages';
   const buttons = document.createElement('div'); buttons.className = 'buttons';

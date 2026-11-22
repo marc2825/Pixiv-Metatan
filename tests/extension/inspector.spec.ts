@@ -130,3 +130,20 @@ test('15-second production timeout ends the operation and enables local fallback
   expect(await driver.disabled(ui.file)).toBe(false);
   expect(extension.records.filter(r => r.kind === 'original')).toHaveLength(1);
 });
+
+test('toolbar inspector page reads a local file inside the installed extension without any network request (#15)', async ({ extension }) => {
+  const id = new URL(extension.worker.url()).host;
+  const page = await extension.context.newPage();
+  await page.goto(`chrome-extension://${id}/inspector.html`);
+  await expect(page.getByRole('heading', { name: 'ローカル画像のメタデータ検査' })).toBeVisible();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'ファイルを選択', exact: true }).click();
+  // Written by NovelAI's official stealth writer (alpha channel only), see tests/reference/README.md.
+  await (await chooser).setFiles(resolve('tests/reference/fixtures/novelai-stealth-only.png'));
+  const result = page.getByLabel('ローカル検査結果', { exact: true });
+  await expect(result).toContainText('メタデータから推定: novelai');
+  await expect(result).toContainText('stealth_pngcompデータあり');
+  await expect(result).toContainText('ローカル: novelai-stealth-only.png');
+  expect(extension.records.filter(r => r.kind !== 'other')).toEqual([]);
+  expect(extension.unexpected).toEqual([]);
+});

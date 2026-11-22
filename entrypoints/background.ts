@@ -23,4 +23,6 @@ export default defineBackground(() => {
     else if (change.status === 'loading') inspector.onNavigation(id);
   });
   browser.tabs.onRemoved.addListener(id => inspector.onNavigation(id));
+  // Toolbar icon: open the standalone local inspector (works without pixiv; tabs.create needs no permission).
+  browser.action.onClicked.addListener(() => { void browser.tabs.create({ url: browser.runtime.getURL('/inspector.html') }); });
 });
