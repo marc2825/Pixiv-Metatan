@@ -9,6 +9,17 @@ import { inspectLocalFile } from './local-file';
 import { PageWheel, previewPosition } from './preview-controls';
 import { renderResult } from './result';
 
+/**
+ * Sweeping across a grid opens previews in quick succession. When another preview opened within
+ * SWEEP_WINDOW_MS, the pages request waits SWEEP_API_DELAY_MS more (the DOM thumbnail is shown at
+ * once), so cards the pointer merely passes over do not each trigger a request (issue #14). A
+ * deliberate first hover and cached artworks are not delayed.
+ */
+export const SWEEP_WINDOW_MS = 1000, SWEEP_API_DELAY_MS = 150;
+const pause = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+  const timer = setTimeout(resolve, ms);
+  signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+});
 const stableResult = (result: InspectionResult) => ['found', 'no-metadata', 'unsupported-format', 'parse-error', 'too-large'].includes(result.status);
 
 /** Isolated UI. Hover requests only pages/derivatives; original bytes require Metadata. */
@@ -55,7 +66,7 @@ export function mountHoverPreview(shadow: ShadowRoot, deps: AppDependencies, onO
   let operation: { id: string; controller: AbortController; remote: boolean } | undefined;
   let fileContext: number | undefined;
   let openTimer: ReturnType<typeof setTimeout> | undefined, closeTimer: ReturnType<typeof setTimeout> | undefined;
-  let layoutFrame = 0;
+  let layoutFrame = 0, lastOpenAt = -Infinity, deferred = false;
   let pointerInPanel = false, pointerAnchor: HTMLAnchorElement | undefined;
   let suppressFocus = false;
   const wheel = new PageWheel();
@@ -91,7 +102,8 @@ export function mountHoverPreview(shadow: ShadowRoot, deps: AppDependencies, onO
     if (returnFocus && anchor?.isConnected) { suppressFocus = true; anchor.focus(); suppressFocus = false; }
   }
   function navigation() {
-    if (contextUrl !== location.href) { hide(); store.clear(); results.clear(); contextUrl = location.href; }
+    // A new page is not a continuation of a sweep: reset the sweep timer with the caches.
+    if (contextUrl !== location.href) { hide(); store.clear(); results.clear(); contextUrl = location.href; lastOpenAt = -Infinity; }
   }
   function current(token: number): boolean {
     navigation();
@@ -153,10 +165,24 @@ export function mountHoverPreview(shadow: ShadowRoot, deps: AppDependencies, onO
     author.textContent = thumbnail.author ?? ''; author.hidden = !thumbnail.author;
     separator.textContent = thumbnail.author ? ' · ' : '';
     link.href = `https://www.pixiv.net/artworks/${thumbnail.artworkId}`;
-    showImage(); controls(); place(); info.textContent = '作品の画像一覧を取得中…';
+    showImage(); controls(); place();
+    const sweeping = Date.now() - lastOpenAt < SWEEP_WINDOW_MS;
+    lastOpenAt = Date.now();
+    await loadPages(thumbnail, sweeping);
+  }
+  /** The user is still looking at this preview (pointer on the card or panel, or focus). */
+  const engaged = (thumbnail: Thumbnail) => pointerAnchor === thumbnail.anchor || pointerInPanel || focusedInPreview();
+  async function loadPages(thumbnail: Thumbnail, delay: boolean) {
+    info.textContent = '作品の画像一覧を取得中…'; deferred = false;
     const token = generation, controller = new AbortController(); listing = controller; controls();
+    const cached = store.peek(thumbnail.artworkId);
     try {
-      const loaded = await store.load(thumbnail.artworkId, controller.signal);
+      if (!cached && delay) {
+        await pause(SWEEP_API_DELAY_MS, controller.signal);
+        // Passed over while sweeping: keep the thumbnail, skip the request until the user comes back.
+        if (!engaged(thumbnail)) { deferred = true; info.textContent = 'カードから離れたため、画像一覧の取得を保留しました。'; return; }
+      }
+      const loaded = cached ?? await store.load(thumbnail.artworkId, controller.signal);
       if (!current(token)) return;
       pages = loaded; showImage(); showResult();
     } catch (error) {
@@ -184,7 +210,10 @@ export function mountHoverPreview(shadow: ShadowRoot, deps: AppDependencies, onO
     if (event.composedPath().includes(host)) { clearClose(); return; }
     navigation();
     const thumbnail = thumbnailFromTarget(event.target);
-    if (thumbnail) { pointerAnchor = thumbnail.anchor; scheduleOpen(thumbnail); }
+    if (!thumbnail) return;
+    pointerAnchor = thumbnail.anchor;
+    if (deferred && !listing && target?.anchor === thumbnail.anchor) void loadPages(target, false);
+    scheduleOpen(thumbnail);
   };
   const out = (event: MouseEvent) => {
     if (event.composedPath().includes(host)) return;
@@ -221,8 +250,11 @@ export function mountHoverPreview(shadow: ShadowRoot, deps: AppDependencies, onO
     // One layout read per frame, however many scroll events arrive.
     layoutFrame = requestAnimationFrame(() => { layoutFrame = 0; navigation(); place(); });
   };
-  const pageHide = () => { hide(); store.clear(); results.clear(); };
-  panel.addEventListener('mouseenter', () => { pointerInPanel = true; pointerAnchor = undefined; clearOpen(); clearClose(); });
+  const pageHide = () => { hide(); store.clear(); results.clear(); lastOpenAt = -Infinity; };
+  panel.addEventListener('mouseenter', () => {
+    pointerInPanel = true; pointerAnchor = undefined; clearOpen(); clearClose();
+    if (deferred && !listing && target) void loadPages(target, false);
+  });
   panel.addEventListener('mouseleave', () => { pointerInPanel = false; scheduleClose(); });
   stage.addEventListener('wheel', event => {
     navigation();

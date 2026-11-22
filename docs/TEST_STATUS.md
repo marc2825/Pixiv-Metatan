@@ -38,6 +38,21 @@ Reference fixtures (`scripts/reference-fixtures.py`) were regenerated with pinne
 
 The live-connectivity file records the artifact hashes of the build at measurement time. The final build hashes are in the synthetic evidence file.
 
+## Hover traffic benchmark (synthetic, issue #14)
+
+`tests/pages-traffic.test.ts` drives the real hover UI with fake timers and a fake pages API (400 ms latency unless noted, honours abort like `fetch`). "Final" is the time from the last card's hover start until its page list is shown. The "after" values are asserted exactly by the test.
+
+| Scenario | Requests before → after | Aborted mid-flight | Final before → after |
+|---|---|---|---|
+| Skim 10 cards, 100 ms each | 1 → 1 | 0 → 0 | 650 → 650 ms |
+| Sweep 10 cards, 300 ms each | 10 → 2 | 9 → 0 | 650 → 800 ms |
+| Leave (preview closes) and re-hover | 2 → 1 | 1 → 0 | 650 → 250 ms |
+| A, then B, then back to A | 3 → 2 | 1 → 0 | 650 → 250 ms |
+| Sweep 5 on a slow API (1500 ms) | 5 → 2 | 4 → 0 | 1750 → 1900 ms |
+| 429 first, then sweep 5 | 1 → 1 | 0 → 0 | not shown (cooldown) |
+
+Trade-off: only during a sweep, the last card's page list waits 150 ms longer (the thumbnail is shown immediately either way). Live traffic on real pixiv is NOT MEASURED (manual check, MANUAL_TESTS item 1).
+
 ## What the automated tests cover
 
 - PNG structure/CRC/order, tEXt/zTXt/iTXt, Latin-1/UTF-8 (BOM kept), duplicates, prototype-like keys, compression bombs, size/pixel/chunk/JSON limits, cancellation.
