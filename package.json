@@ -2,7 +2,7 @@
   "name": "pixiv-metatan",
   "private": true,
   "version": "0.1.0",
-  "description": "Hover previews and user-initiated AI image metadata inspection on pixiv (Chrome/Edge MV3)",
+  "description": "Unofficial Chrome/Edge extension that previews pixiv thumbnails and reads embedded AI generation metadata on your device",
   "type": "module",
   "scripts": {
     "dev": "wxt",
