@@ -1,92 +1,190 @@
-# Verification status — 2026-11-22 (JST)
+# 検証状況
 
-**Implementation and synthetic tests: PASS. Live pixiv acceptance: not done. Hover and Metadata inside real pixiv pages are NOT VERIFIED. The worker's original-fetch path (pixiv Referer, no cookies) returned 200 against real i.pximg.net on 2026-11-22.**
+2026-11-22（日本時間）時点の状況です。
 
-## Automated results
+- 実装と合成データでのテスト: PASS。
+- 実際のpixivでの受け入れ確認: まだです。pixivのページの中でのホバーとMetadataは NOT VERIFIED です。
+- Service Workerの原寸取得（pixivのReferer付き、Cookieなし）は、2026-11-22に実際のi.pximg.netで200を返しました。
 
-| Command | Result | Scope |
+## 自動テスト
+
+| コマンド | 結果 | 範囲 |
 |---|---|---|
-| `npm run typecheck` | PASS | WXT prepare + TypeScript strict (src, entrypoints, tests, scripts) |
-| `npm test` | PASS — 15 files / 412 tests | Parsers, 12 upstream-verified reference fixtures, URL/authorisation, worker, Referer rule, DOM races, page store, caches, wheel, UI rendering, local inspector page, manifest policy, hover traffic benchmark, static security guards and adversarial inputs (191 tests before the 2026-11-19 audit, all kept) |
-| `npm run build` | PASS | Chrome MV3: background, content script, local inspector page (`inspector.html`), icons |
-| `npm run build:edge` | PASS | Edge MV3, same size. A build, not a run in real Edge |
-| `npm run check:manifest` | PASS | Chrome/Edge: only `declarativeNetRequestWithHostAccess`; hosts pixiv/pximg only; exactly one top-frame isolated content script |
-| `npm run test:browser` | PASS — 12 tests | Test adapter, synthetic pages and HTTP, Chromium 156 |
-| `npm run test:extension` | PASS — 18 tests | Production MV3 (closed root, runtime messaging, worker, local inspector page) in disposable profiles; all HTTP synthetic ([evidence](evidence/mv3-synthetic-2026-11-22.json)) |
-| `npm audit` | 0 vulnerabilities | devDependencies only |
+| `npm run typecheck` | PASS | WXTの準備と、TypeScriptのstrictでのチェック（src、entrypoints、tests、scripts） |
+| `npm test` | PASS（15ファイル / 412件） | 下の注を参照 |
+| `npm run build` | PASS | Chrome MV3。background、コンテンツスクリプト、検査ページ（`inspector.html`）、アイコン |
+| `npm run build:edge` | PASS | Edge MV3。サイズはChromeと同じ。ビルドしただけで、実際のEdgeでは動かしていない |
+| `npm run check:manifest` | PASS | Chrome / Edgeとも、権限は `declarativeNetRequestWithHostAccess` だけ。ホストはpixivとpximgだけ。トップフレーム・isolatedのコンテンツスクリプトがちょうど1つ |
+| `npm run test:browser` | PASS（12件） | テスト用アダプタ、合成ページと合成HTTP、Chromium 156 |
+| `npm run test:extension` | PASS（18件） | 本番ビルドのMV3（closed root、runtime messaging、Service Worker、検査ページ）を使い捨てのプロファイルで実行。通信はすべて合成（[証跡](evidence/mv3-synthetic-2026-11-22.json)） |
+| `npm audit` | 脆弱性0件 | devDependenciesのみ |
 | `git diff --check` | PASS | |
-| GitHub Actions CI | PASS | Green on `main` since 2026-11-19 (first run [44462959593](https://github.com/marc2825/Pixiv-Metatan/actions/runs/44462959593)). Since PR #8 (run 44846975048), five jobs: verify on Node 22 and 24, `npm audit`, gitleaks, Playwright. Every PR is checked before merge |
+| GitHub Actions CI | PASS | 下の注を参照 |
 
-Reference fixtures (`scripts/reference-fixtures.py`) were regenerated with pinned, hash-checked upstream code. NovelAI's official Stealth writer and reader, ComfyUI `SaveImage` and `_create_webp_metadata`, and AUTOMATIC1111 v1.10.1 `save_image_with_geninfo` / `read_info_from_image` all passed their read-backs. The six older fixtures were reproduced byte-for-byte.
+注:
 
-## Live pixiv (2026-11-19 and 2026-11-22)
+- `npm test` の範囲:
+  - 解析処理と、上流で確かめた参照fixture 12個。
+  - URLと認可、Service Worker、Refererのルール。
+  - DOMでの競合、page store、キャッシュ、ホイール、表示、検査ページ。
+  - マニフェストのポリシー、ホバー時の通信量のベンチマーク、静的なセキュリティのガード、悪意のある入力。
+  - 2026-11-19の監査より前の191件は、すべて残しています。
+- GitHub Actions CI:
+  - 2026-11-19から `main` で通り続けています（最初の実行は[44462959593](https://github.com/marc2825/Pixiv-Metatan/actions/runs/44462959593)）。
+  - PR #8（実行 44846975048）からは、5つのジョブがあります: Node 22と24での検証、`npm audit`、gitleaks、Playwright。
+  - どのPRも、マージの前にCIで確認しています。
 
-| Check | Result | Notes |
+参照fixture（`scripts/reference-fixtures.py`）は、バージョンを固定しハッシュを確かめた上流のコードで作り直しました。
+
+- 読み戻しの確認に通ったもの:
+  - NovelAI公式のStealthの書き込み・読み取り処理。
+  - ComfyUIの `SaveImage` と `_create_webp_metadata`。
+  - AUTOMATIC1111 v1.10.1の `save_image_with_geninfo` / `read_info_from_image`。
+- 以前からある6個は、バイト単位で同じものが再現できました。
+
+## 実際のpixiv（2026-11-19、2026-11-22）
+
+| 確認したこと | 結果 | 補足 |
 |---|---|---|
-| Document, automated headless Chromium 156 | FAIL (403) | Cloudflare managed challenge (`cf-mitigated: challenge`, "Just a moment..."). Not solved or evaded ([evidence](evidence/live-connectivity-2026-11-19.json)) |
-| Document, plain HTTP client | PASS (200) | No cookies |
-| Pages API, plain HTTP, one public artwork | PASS (200, JSON) | URL shapes (`thumb_mini`, `small`, `regular`, `original`) match the validators |
-| Original, no cookie / no Referer (the worker's request until 2026-11-21) | FAIL (403) | Derivative also 403 ([evidence](evidence/live-layers-2026-11-19.json)) |
-| Original, no cookie / `Referer: https://www.pixiv.net/` (plain HTTP) | PASS (200, image/jpeg) | 2026-11-22, after the maintainer decided to send the pixiv Referer (issue #9). No `Access-Control-Allow-Origin` in the response ([evidence](evidence/live-referer-2026-11-22.json)) |
-| Production build, worker fetch with the session rule (Chromium 156, real i.pximg.net) | PASS (200, image/jpeg) | Same request options as the product; session rule installed at startup |
-| Ordinary tab `<img>` of the same original (rule scope) | PASS (load fails as expected) | The rule does not change requests from pages |
-| Extension inside a real pixiv tab (listing DOM, preview `<img>`, Metadata click) | NOT RUN | Blocked at document level for automation; needs the [manual GUI check](MANUAL_TESTS.md) (issue #11) |
-| Logged-in / age-restricted scope | NOT RUN | No credentials imported |
-| Real Edge, Chrome/Edge 120, high DPI, long sessions | NOT RUN | |
-| Stealth/V4/EXIF on real generated images; survival after posting to pixiv | NOT RUN | Synthetic upstream-verified fixtures only; protocol in MANUAL_TESTS (issue #12) |
-| NovelAI signature verification | Not implemented | Never shows verified/invalid |
+| ページの取得（自動化したヘッドレスChromium 156） | FAIL（403） | CloudflareのManaged Challenge（`cf-mitigated: challenge`、"Just a moment..."）。突破も回避もしていない（[証跡](evidence/live-connectivity-2026-11-19.json)） |
+| ページの取得（通常のHTTPクライアント） | PASS（200） | Cookieなし |
+| pages API（通常のHTTP、公開作品1件） | PASS（200、JSON） | URLの形（`thumb_mini`、`small`、`regular`、`original`）が検証処理と一致 |
+| 原寸（Cookieなし、Refererなし。2026-11-21までのService Workerの要求と同じ） | FAIL（403） | 縮小画像も403（[証跡](evidence/live-layers-2026-11-19.json)） |
+| 原寸（Cookieなし、`Referer: https://www.pixiv.net/` あり。通常のHTTP） | PASS（200、image/jpeg） | 2026-11-22、Refererを付ける方針に決めた後（issue #9）。レスポンスに `Access-Control-Allow-Origin` はない（[証跡](evidence/live-referer-2026-11-22.json)） |
+| 本番ビルドのService Workerからの取得（セッションルールあり、Chromium 156、実際のi.pximg.net） | PASS（200、image/jpeg） | 製品と同じ取得の設定。セッションルールは起動時に登録 |
+| 同じ原寸を通常のタブの `<img>` で読む（ルールの範囲の確認） | PASS（期待どおり読み込みに失敗） | ルールはページからの要求を変えない |
+| 実際のpixivのタブの中での拡張（一覧のDOM、プレビューの `<img>`、Metadataのクリック） | NOT RUN | 自動化ではページの段階で止められる。[手動での確認](MANUAL_TESTS.md)が必要（issue #11） |
+| ログイン時、年齢制限のある作品 | NOT RUN | 認証情報は持ち込んでいない |
+| 実際のEdge、Chrome / Edge 120、高DPI、長時間の使用 | NOT RUN | |
+| 実際の生成画像でのStealth / V4 / EXIF、pixivに投稿した後に残るか | NOT RUN | 上流で確かめた合成fixtureだけ。手順はMANUAL_TESTSにある（issue #12） |
+| NovelAIの署名の検証 | 未実装 | verified / invalidは表示しない |
 
-The live-connectivity file records the artifact hashes of the build at measurement time. The final build hashes are in the synthetic evidence file.
+live-connectivityのファイルには、測定したときのビルドの成果物のハッシュが記録されています。最終的なビルドのハッシュは、合成の証跡ファイルにあります。
 
-## Hover traffic benchmark (synthetic, issue #14)
+## ホバー時の通信量（合成ベンチマーク、issue #14）
 
-`tests/pages-traffic.test.ts` drives the real hover UI with fake timers and a fake pages API (400 ms latency unless noted, honours abort like `fetch`). "Final" is the time from the last card's hover start until its page list is shown. The "after" values are asserted exactly by the test.
+`tests/pages-traffic.test.ts` は、偽のタイマーと偽のpages APIを使って、実際のホバーのUIを動かします。
 
-| Scenario | Requests before → after | Aborted mid-flight | Final before → after |
+- pages APIの応答は、特に書いていなければ400ミリ秒かかります。`fetch` と同じく中止に応じます。
+- 「最後」は、最後のカードにカーソルを合わせてから、そのページ一覧が出るまでの時間です。
+- 変更後の値は、テストで完全に一致することを確かめています。
+
+| 場面 | 要求数（前 → 後） | 途中で中止（前 → 後） | 最後（前 → 後） |
 |---|---|---|---|
-| Skim 10 cards, 100 ms each | 1 → 1 | 0 → 0 | 650 → 650 ms |
-| Sweep 10 cards, 300 ms each | 10 → 2 | 9 → 0 | 650 → 800 ms |
-| Leave (preview closes) and re-hover | 2 → 1 | 1 → 0 | 650 → 250 ms |
-| A, then B, then back to A | 3 → 2 | 1 → 0 | 650 → 250 ms |
-| Sweep 5 on a slow API (1500 ms) | 5 → 2 | 4 → 0 | 1750 → 1900 ms |
-| 429 first, then sweep 5 | 1 → 1 | 0 → 0 | not shown (cooldown) |
+| 10枚を100msずつ通り過ぎる | 1 → 1 | 0 → 0 | 650 → 650 ms |
+| 10枚を300msずつなぞる | 10 → 2 | 9 → 0 | 650 → 800 ms |
+| 離れて（プレビューが閉じて）同じカードに戻る | 2 → 1 | 1 → 0 | 650 → 250 ms |
+| A、B、Aに戻る | 3 → 2 | 1 → 0 | 650 → 250 ms |
+| 遅いAPI（1500ms）で5枚なぞる | 5 → 2 | 4 → 0 | 1750 → 1900 ms |
+| 最初に429、その後5枚なぞる | 1 → 1 | 0 → 0 | 表示なし（待機中） |
 
-Trade-off: only during a sweep, the last card's page list waits 150 ms longer (the thumbnail is shown immediately either way). Live traffic on real pixiv is NOT MEASURED (manual check, MANUAL_TESTS item 1).
+代わりに、なぞっているときだけ、最後のカードのページ一覧が150ミリ秒遅れます（サムネイルはどちらでもすぐ出ます）。実際のpixivでの通信量は NOT MEASURED です（手動での確認、MANUAL_TESTSの項目1）。
 
-## What the automated tests cover
+## 自動テストで確かめていること
 
-- PNG structure/CRC/order, tEXt/zTXt/iTXt, Latin-1/UTF-8 (BOM kept), duplicates, prototype-like keys, compression bombs, size/pixel/chunk/JSON limits, cancellation.
-- Stealth: all five PNG filter types, multi-column magic for short images, grey+alpha, early exit (corruption after row 120 never decoded), unsupported layouts, `stealth_pnginfo` detection, truncated/oversized/invalid-gzip/gzip-bomb payloads, non-JSON payloads, text-vs-Stealth disagreement notes.
-- EXIF: MM/II UTF-16, ASCII/undefined UserComment, ComfyUI tags only in the documented IFD0 range, malformed JPEG/WebP/TIFF structures, offsets, IFD counts, executable-looking text as data.
-- V4/V4.5 captions: per-character prompts/negatives/positions, schema mismatches flagged, bounds.
-- pixiv: live-observed URL shapes, page order, non-inspectable pages without renumbering, foreign/mismatched originals rejected, `error:true` and 4xx JSON messages sanitised, 429/timeout/HTTP classification.
-- Thumbnail detection: nested targets, multiple images, hovered-image preference, `currentSrc`, lazy placeholders, recycled cards, overlay cards, no guessing outside links, no borrowed authors, bounds.
-- Worker: sender/frame/tab/context checks before and after fetch, artwork-bound vs URL-bound requests, structured failures with Retry-After, global single slot, cancellation, timeout, MIME/magic, streamed limits.
-- UI: 250 ms / 200 ms timing, wheel gestures, keys, Escape propagation, focus retention, tab-level cooldown, non-inspectable pages, `srcset`, single shared ticker, host re-attachment, SPA/BFCache, local files never assigned to artworks, text-only rendering, click-only copy.
+- PNG:
+  - 構造、CRC、順序。
+  - tEXt / zTXt / iTXt、Latin-1 / UTF-8（BOMは残す）。
+  - 重複、`__proto__` のようなキー、圧縮爆弾。
+  - サイズ、画素数、チャンク、JSONの上限、取り消し。
+- Stealth形式:
+  - 読み取り: PNGの5種類のフィルタすべて、背の低い画像での複数列にまたがる目印、グレー+アルファ。
+  - 早めの終了: 120行目より後の破損は読まない。
+  - 対応しない形と検出だけするもの: 対応していない画像の形、`stealth_pnginfo` の検出。
+  - 異常な埋め込み: 途中で切れたもの、大きすぎるもの、不正なgzip、gzip爆弾、JSONでないもの。
+  - テキストとStealthが食い違うときの注記。
+- EXIF:
+  - MM / IIのUTF-16、ASCII / 未定義のUserComment。
+  - ComfyUIのタグは、決められたIFD0の範囲にあるときだけ認める。
+  - 壊れたJPEG / WebP / TIFFの構造、オフセット、IFDの件数。
+  - 実行できそうに見えるテキストも、ただのデータとして扱う。
+- V4 / V4.5のキャプション:
+  - キャラクターごとのプロンプト、ネガティブ、位置。
+  - 形式が合わないときの注記、上限。
+- pixiv:
+  - 実測したURLの形、ページの順序。
+  - 検査できないページを番号を変えずに残す。
+  - 他の作品の原寸や、作品・ページが合わない原寸を断る。
+  - `error:true` と4xxのJSONのメッセージを無害化する。
+  - 429 / タイムアウト / HTTPの分類。
+- サムネイルの検出:
+  - 入れ子の対象、複数の画像、カーソルを合わせた画像の優先、`currentSrc`。
+  - 遅延読み込みの仮画像、使い回されるカード、画像の上にリンクが重なったカード。
+  - リンクの外は推測しない、他人の作者名を借りない、上限。
+- Service Worker:
+  - 取得の前後での送信元 / フレーム / タブ / 文脈の確認。
+  - 作品IDに結び付く依頼とURLに結び付く依頼。
+  - `Retry-After` 付きの構造化した失敗、全タブで1枠、取り消し、タイムアウト。
+  - MIMEと先頭バイト、読み込み中の上限。
+- UI:
+  - 250ms / 200msのタイミング、ホイール、キー操作、Escの伝わり方、フォーカスの保持。
+  - タブ単位の待機、検査できないページ、`srcset`。
+  - 共有のticker 1本、ホスト要素の付け直し、SPA / BFCache。
+  - 手元のファイルを作品に結び付けない、テキストだけの表示、押したときだけのコピー。
 
-Test-assertion changes only followed intended behaviour changes: JPEG is now parsed, new labels, the 403 explanation after the Referer decision, and request timing in the rapid-switch hover test (#14). Each kept the original guarantee, and none were deleted.
+テストの期待値を変えたのは、意図して動作を変えたときだけです。
 
-## Environment
+- 変えたところ:
+  - JPEGを解析するようになった。
+  - 表示の文言が新しくなった。
+  - Refererを付けると決めた後の403の説明。
+  - ホバーで素早く切り替えるテストでの、要求のタイミング（#14）。
+- どの変更でも元の保証は残しており、削ったテストはありません。
 
-Linux x64 (WSL2), Node 24.21.0, npm 11.19.0, Chromium 156.0.8078.4. Re-run on 2026-11-19 after the Dependabot updates (TypeScript 7.0.2, jsdom 31.0.1, Playwright 1.65.1, Vite 8.3.8, Vitest 5.1.0, WXT 0.21.5): typecheck, 279 Vitest tests, both builds, the manifest guard, 12 browser and 17 production MV3 tests all pass. TypeScript 7.0.2 reported the same diagnostics as 5.9.3 on a probe file of deliberate strictness violations. Chromium's missing system libraries (NSS, ALSA) were extracted to a temporary directory for this run only; nothing was installed into the OS or repository. On a normal machine use `npx playwright install --with-deps chromium`. Temporary browser profiles were deleted after each run; no existing user profile was used.
+## 環境
 
-## Pre-publication audit (2026-11-21)
+- Linux x64（WSL2）、Node 24.21.0、npm 11.19.0、Chromium 156.0.8078.4。
+- 2026-11-19のDependabotの更新（TypeScript 7.0.2、jsdom 31.0.1、Playwright 1.65.1、Vite 8.3.8、Vitest 5.1.0、WXT 0.21.5）の後に、すべて実行し直して通りました。
+  - 内訳: 型チェック、Vitest 279件、両方のビルド、マニフェストのガード、ブラウザのテスト12件、本番MV3のテスト17件。
+  - わざとstrictに違反するコードを書いたファイルで試したところ、TypeScript 7.0.2の診断は5.9.3と同じでした。
+- Chromiumに足りないシステムのライブラリ（NSS、ALSA）は、このときだけ一時ディレクトリに展開しました。OSにもリポジトリにも入れていません。ふつうの環境では `npx playwright install --with-deps chromium` を使ってください。
+- 一時的なブラウザのプロファイルは毎回消しており、既存のユーザーのプロファイルは使っていません。
 
-| Scope | Method | Result |
+## 公開前の監査（2026-11-21）
+
+| 範囲 | 方法 | 結果 |
 |---|---|---|
-| All commits and refs incl. GitHub PR refs (19 commits) | gitleaks 8.30.1 (`git --log-opts=--all`, redacted) | No findings |
-| Every blob ever committed (223, incl. deleted files and binaries) | Custom patterns: private keys, GitHub/AWS/Slack/Google/npm/JWT tokens, cookie/auth headers, pixiv session names, env secrets, home paths, private IPs, hostnames, real pximg URLs, artwork IDs | No credentials. Older versions of `docs/TEST_STATUS.md` (now replaced) contained a local home path and temporary directories: harmless, history not rewritten |
-| Image metadata in history (screenshots, icons, fixtures) | Decoded PNG text, EXIF and WebP chunks | Synthetic test values only; screenshots carry no metadata |
-| Commit identities | `git log --all` | Author email of the maintainer (acceptable by decision) and GitHub noreply addresses |
-| GitHub Actions logs (27 runs) and artifacts (15) | Downloaded and scanned | Only GitHub's own masked job tokens (`***`) and runner paths. One raw Playwright report artifact contains the commit author email, which is acceptable; artifacts are now limited to sanitized evidence |
-| PR bodies and comments (#1–#7) | API export, pattern scan | Dependabot release notes and maintainer comments only |
-| Current tracked files | Same patterns, plus tracked-but-ignored check | No local paths, credentials or private data; no tracked file matches `.gitignore` |
-| Dependency licenses | `package-lock.json` license fields; bundle inspection | Permissive dev tooling (MPL-2.0 `lightningcss` build-time only); bundle contains only project code and WXT runtime (MIT) |
+| すべてのコミットと参照（GitHubのPRの参照を含む、19コミット） | gitleaks 8.30.1（`git --log-opts=--all`、値は伏せる） | 検出なし |
+| これまでコミットされたすべてのblob（223個。削除したファイルとバイナリを含む） | 独自のパターン（下の注を参照） | 認証情報なし。以前の `docs/TEST_STATUS.md`（今は置き換え済み）に、ローカルのホームのパスと一時ディレクトリが書かれていた。害はないので、履歴は書き換えていない |
+| 履歴にある画像のメタデータ（スクリーンショット、アイコン、fixture） | PNGのテキスト、EXIF、WebPのチャンクを読み出す | 合成したテストの値だけ。スクリーンショットにメタデータはない |
+| コミットの作者 | `git log --all` | メンテナーのメールアドレス（公開してよいと判断済み）と、GitHubのnoreplyアドレス |
+| GitHub Actionsのログ（27回）と成果物（15個） | ダウンロードしてスキャン | GitHubが伏せたジョブのトークン（`***`）とランナーのパスだけ。Playwrightのレポートをそのまま上げた成果物が1つあり、コミットの作者のメールアドレスが入っていたが問題はない。今は伏せ字にした証跡だけを上げている |
+| PRの本文とコメント（#1〜#7） | APIで書き出してパターンでスキャン | Dependabotのリリースノートとメンテナーのコメントだけ |
+| 今追跡しているファイル | 同じパターンと、`.gitignore` に当たるのに追跡されているファイルの確認 | ローカルのパス、認証情報、個人的なデータなし。`.gitignore` に当たる追跡ファイルなし |
+| 依存のライセンス | `package-lock.json` のlicenseの欄と、バンドルの中身の確認 | 開発用のツールは緩いライセンス（MPL-2.0の `lightningcss` はビルド時だけ）。バンドルには、このプロジェクトのコードとWXTのランタイム（MIT）だけ |
 
-## 公開判定 (2026-11-22)
+注: blobのスキャンに使った独自のパターンは次のとおりです。
 
-| 対象 | 判定 | 根拠 |
+- 秘密鍵。
+- GitHub / AWS / Slack / Google / npm / JWTのトークン。
+- Cookieや認証のヘッダー、pixivのセッションの名前、環境変数の秘密情報。
+- ホームのパス、プライベートIP、ホスト名。
+- 実際のpximgのURL、作品ID。
+
+## 公開の判定
+
+2026-11-22時点。
+
+| 対象 | 判定 | 理由 |
 |---|---|---|
-| GitHubでのソース公開 | GO | 認証情報の漏洩なし（2026-11-21に全履歴・CIログ・Artifact・PR本文を監査）。ライセンス・第三者表記・セキュリティ方針・CIあり。公開前整備（PR #8）はマージ済み。Public化の直後にGitHub設定（private vulnerability reporting等、[RELEASE_CHECKLIST](RELEASE_CHECKLIST.md#source-publication-github)）を行う |
-| GitHub Releasesでの配布 | NO-GO | 実pixivのページ上でのホバー・一覧検出・Metadata操作が未確認（#11）。原寸の取得経路はWorkerからの取得で200を確認済み。手動受入と実Edgeの確認後に、検証範囲を明記したプレリリースとして再判定 |
-| Chrome Web Store | NO-GO | 上記に加え、プライバシーポリシーURL・ストア素材・名称（第三者商標）・pixiv規約（Referer付与を含む）の確認が未了 |
+| GitHubでのソースの公開 | GO（2026-11-22に公開済み） | 下の注を参照 |
+| GitHub Releasesでの配布 | NO-GO | 下の注を参照 |
+| Chrome ウェブストア | NO-GO | 下の注を参照 |
+
+注:
+
+- GitHubでのソースの公開:
+  - 認証情報の漏れはありません（2026-11-21に、全履歴、CIのログ、成果物、PRの本文を監査）。
+  - ライセンス、第三者の表記、セキュリティの方針、CIがそろっています。
+  - 公開前の整備（PR #8）はマージ済みです。
+  - 公開した直後に、非公開の脆弱性報告、Secret scanning、Push protectionを有効にしました（[RELEASE_CHECKLIST](RELEASE_CHECKLIST.md#githubでのソースの公開)）。
+- GitHub Releasesでの配布:
+  - まだ確かめていないこと: 実際のpixivのページでのホバー、一覧の検出、Metadataの操作（#11）。
+  - 原寸の取得の経路は、Service Workerからの取得で200を確認済みです。
+  - 手動の受け入れ確認と実際のEdgeでの確認が済んだら、検証した範囲を書いたプレリリースとして判定し直します。
+- Chrome ウェブストア:
+  - Releasesの条件に加えて、次の確認が済んでいません。
+    - プライバシーポリシーのURL。
+    - ストア用の素材。
+    - 名前（第三者の商標）。
+    - pixivの規約（Refererを付けることを含む）。

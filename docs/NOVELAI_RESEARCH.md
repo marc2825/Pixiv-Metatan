@@ -1,40 +1,70 @@
-# NovelAI形式の調査と実装状況
+# NovelAIの形式について
 
-更新: 2026-11-19。
+2026-11-19時点の調査と、実装の状況です。
 
-## 参照した一次資料（固定）
+## 参照した資料（バージョン固定）
 
-- 公式リポジトリ [NovelAI/novelai-image-metadata](https://github.com/NovelAI/novelai-image-metadata) コミット `3428907ac7183d7e36d7cc39e8f46f6f35ce99c1`（MIT License, Copyright 2023 NovelAI）
-  - `nai_meta.py`（Stealth reader）SHA-256 `49fc35c2…881c`
-  - `nai_meta_writer.py`（Stealth writer）SHA-256 `252eb0ef…ecec`
-  - `nai_sig.py`（PNGテキストreader・署名verifier）SHA-256 `66716858…c326`
-- 公式画像APIの定義 `https://image.novelai.net/docs/doc.json`（2026-11-19取得、SHA-256 `6c138b59…1415`）: `RequestParameters.v4_prompt` / `v4_negative_prompt` → `V4ConditionInput { caption: { base_caption, char_captions: [{ char_caption, centers: [{x, y}] }] }, use_coords, use_order, legacy_uc }`
+- 公式リポジトリ [NovelAI/novelai-image-metadata](https://github.com/NovelAI/novelai-image-metadata) のコミット `3428907ac7183d7e36d7cc39e8f46f6f35ce99c1`（MIT License, Copyright 2023 NovelAI）
+  - `nai_meta.py`（Stealthの読み取り）SHA-256 `49fc35c2…881c`
+  - `nai_meta_writer.py`（Stealthの書き込み）SHA-256 `252eb0ef…ecec`
+  - `nai_sig.py`（PNGのテキストの読み取りと署名の検証）SHA-256 `66716858…c326`
+- 公式の画像APIの定義 `https://image.novelai.net/docs/doc.json`（2026-11-19に取得、SHA-256 `6c138b59…1415`）
+  - `RequestParameters.v4_prompt` / `v4_negative_prompt` → `V4ConditionInput { caption: { base_caption, char_captions: [{ char_caption, centers: [{x, y}] }] }, use_coords, use_order, legacy_uc }`
 
-完全なハッシュは`tests/reference/fixtures/expected.json`と`scripts/reference-fixtures.py`にあります。公式コードは拡張にもリポジトリにも含めていません（独自実装・挙動の照合のみ）。
+ハッシュの全体は `tests/reference/fixtures/expected.json` と `scripts/reference-fixtures.py` にあります。公式のコードは、拡張にもこのリポジトリにも入れていません。自分で実装し、動作を突き合わせただけです。
 
-## 実装済み
+## 実装したもの
 
-| 機能 | 実装 | 照合方法 |
+| 機能 | 実装 | 確かめ方 |
 |---|---|---|
-| PNGテキストのComment（1段のenvelopeを含む） | normalize.ts | 公式`nai_sig.extract_png_text_metadata`で読んだ合成fixture |
-| Stealth `stealth_pngcomp` | stealth.ts | 公式writerで作った合成画像（160×48 / 128×128）を公式readerで読み、同じキー・値をJS実装で再現 |
-| V4/V4.5のキャラクター別Prompt・位置 | normalize.ts `v4Captions` | 公式APIスキーマ。合成Commentを公式writer/readerに通して往復を確認 |
+| PNGのテキストのComment（1段のenvelopeを含む） | normalize.ts | 公式の `nai_sig.extract_png_text_metadata` で読んだ合成fixture |
+| Stealth形式 `stealth_pngcomp` | stealth.ts | 公式の書き込み処理で作った合成画像（160×48、128×128）を公式の読み取り処理で読み、同じキーと値をこちらの実装でも得られることを確認 |
+| V4 / V4.5のキャラクター別のプロンプトと位置 | normalize.ts の `v4Captions` | 公式APIの形式。合成したCommentを公式の書き込み・読み取り処理に通して、行き来できることを確認 |
 
-Stealthの読み方（公式`nai_meta.py`と同じ）: RGBAへ変換したアルファ面を**転置**して（列優先で）並べ、各LSBを上位ビットから8個ずつバイトにします。先頭15バイトが`stealth_pngcomp`、続く4バイトがペイロードのビット長（big-endian）、その後がgzip圧縮されたUTF-8 JSONです。`Comment`が文字列なら、さらにJSONとして読みます。FECデータ（現在NovelAIは付加しない）は読みません。公式readerは非圧縮の`stealth_pnginfo`を受け付けないため、この拡張も検出のみで内容は解析しません。
+### Stealth形式の読み方
 
-JS実装の制限: 8-bit・非インターレースのRGBA / グレー+アルファだけ（16-bit、インターレース、パレット+tRNSは未検査と表示）。圧縮ペイロード1 MiB、展開後2 MiB、キー128個まで。
+公式の `nai_meta.py` と同じ方法です。
+
+1. RGBAに変換したアルファの面を転置し、列の順に並べます。
+2. 各画素の最下位ビットを上位ビットから8個ずつ取り、バイトにします。
+3. 先頭の15バイトが `stealth_pngcomp`、次の4バイトが埋め込みデータのビット長（ビッグエンディアン）、その後ろがgzipで圧縮したUTF-8のJSONです。
+4. `Comment` が文字列なら、それもJSONとして読みます。
+
+FECのデータ（今のNovelAIは付けていません）は読みません。公式の読み取り処理は圧縮しない `stealth_pnginfo` を受け付けないので、この拡張も、あることを検出するだけで中身は読みません。
+
+### こちらの実装の制限
+
+- 読めるのは、8ビット・非インターレースのRGBAとグレー+アルファだけです。
+- 16ビット、インターレース、パレット+tRNSは「未検査」と表示します。
+- 上限: 圧縮データ1 MiB、展開後2 MiB、キー128個。
 
 ## 未実装: 電子署名の検証
 
-`nai_sig.py`は、`signed_hash`を除いたCommentのPython `json.dumps`の出力と、画素のバイト列（RGB、またはアルファのLSBを消したRGBA）を連結し、組み込みの公開鍵でEd25519署名を検証します。ブラウザで同じ判定をするには次が必要です。
+`nai_sig.py` は、次のものをつなげて、組み込みの公開鍵でEd25519の署名を検証します。
 
-1. Pillowと同じ画素バイト列の復元（色変換、16-bit、パレット、インターレース）。Canvasの再描画で一致すると仮定しない。
-2. Python `json.dumps`（空白、Unicodeエスケープ、数値表現、キー順）とバイト単位で一致するシリアライズ。
-3. Ed25519の検証手段（対応ブラウザ版の確認、または監査済みの実装）と、公開鍵の出所の記録。
-4. **正当な署名付き画像による正例**と、改変・署名欠落・偽装の負例。テスト用の鍵で作った署名を本番の公開鍵や「検証済み」表示に結び付けない。
+- `signed_hash` を除いたCommentを、Pythonの `json.dumps` で文字列にしたもの。
+- 画素のバイト列（RGB、またはアルファの最下位ビットを消したRGBA）。
 
-正例を用意できないため実装していません。この拡張は`verified` / `invalid`を出さず、署名データがあれば「未検証」、なければ「署名データなし」と表示します（作業項目は[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)の3）。
+ブラウザで同じ判定をするには、次のものが必要です。
 
-## 照合していないもの
+1. Pillowと同じ画素のバイト列を作り直すこと。
+   - 色の変換、16ビット、パレット、インターレースのすべてで一致させる必要があります。
+   - Canvasに描き直せば一致する、とは考えません。
+2. Pythonの `json.dumps` とバイト単位で同じになるシリアライズ。
+   - 空白、Unicodeのエスケープ、数値の書き方、キーの順番まで合わせます。
+3. Ed25519を検証する手段と、公開鍵の出どころの記録。
+   - ブラウザが対応しているバージョンを確かめるか、監査済みの実装を使います。
+4. テスト用の画像:
+   - 正しく署名された画像（正しい例）。
+   - 改変した画像、署名のない画像、偽装した画像（誤った例）。
+   - テスト用の鍵で作った署名を、本番の公開鍵や「検証済み」の表示と結び付けてはいけません。
 
-実際のNovelAIで生成された画像、NovelAIのクラウドInspect、正当な署名。fixtureはすべて自作の合成画像で、`Software=NovelAI`は試験用の自己申告です。
+正しい例が用意できないので、まだ実装していません。この拡張は `verified` / `invalid` を出さず、署名のデータがあれば「未検証」、なければ「署名データなし」と表示します。作業の内容は[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)の1番に書いています。
+
+## 突き合わせていないもの
+
+- 実際にNovelAIで生成した画像。
+- NovelAIのクラウドのInspect。
+- 正しい署名。
+
+fixtureはすべて自分で作った合成画像で、`Software=NovelAI` はテストのための自己申告です。

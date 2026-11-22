@@ -1,72 +1,143 @@
-# Changelog
+# 変更履歴
 
-All notable changes. Dates are JST. The project is unreleased; the version stays 0.1.0 until the first release.
+日付は日本時間です。まだリリースしていないので、バージョンは最初のリリースまで 0.1.0 のままです。
 
-## [Unreleased]
+## 未リリース
 
-### Rename — 2026-11-22
-- The project is now **Pixiv-Metatan** (メタ探, "metadata detective"; previously "pixiv AI Metadata Inspector"). Renamed throughout: extension name, panel and page titles, npm package `pixiv-metatan`, repository `marc2825/Pixiv-Metatan` (old URLs redirect), internal identifiers (`metatan-*` DOM IDs, `METATAN_CHROME_PATH`) and docs. The manifest description and README now say "unofficial".
+### 2026-11-22: 名前の変更
 
-### Issues #9–#17 — 2026-11-22
-- #9 Original Metadata on pixiv: by maintainer decision (following PixivBatchDownloader's approach), the worker's own original request now carries `Referer: https://www.pixiv.net/` via one declarativeNetRequest session rule, scoped to this extension, no tab, GET and `i.pximg.net/img-original/`. No CORS rewriting, no cookies, and pages or other sites are untouched. New permission `declarativeNetRequestWithHostAccess`. Live: 403 without and 200 with the Referer; the production worker fetch returns 200 in Chromium 156.
-- #10 Stealth no longer allocates row buffers for extreme aspect ratios: rows above 1 MiB (`MAX_STEALTH_ROW_BYTES`, 262,144 RGBA px) are checked before allocation and reported as Stealth `not-checked`, while PNG text is still parsed. A synthetic 40,000,000×1 IHDR is covered by a regression test.
-- #13 EXIF: values are validated only for the tags actually read, so a huge or broken unrelated tag (e.g. MakerNote) no longer makes the whole extraction fail. IFD structure checks and strict checks on target tags are unchanged. Duplicated target tags use the first value, with a note. TIFF type 13 (IFD) pointers are now followed.
-- #16 Manifest guard: the policy is now a tested pure function (`scripts/manifest-policy.ts`) with a TypeScript CLI. It requires exactly one top-frame, isolated, `document_idle` pixiv content script with one JS file, a single service-worker background and no popup action. It still rejects extra permissions/hosts and exposure keys (static DNR rulesets, web-accessible resources, external messaging, CSP, options/side panels). 25 synthetic manifests are covered.
-- #15 Standalone local inspector: the toolbar icon opens `inspector.html` in a new tab, using `action.onClicked` and `tabs.create`, so no permission and no popup are needed. It offers file selection and drag & drop, reuses `inspectLocalFile`/`renderResult`, cancels superseded files, ignores URL drags, never navigates to stray drops, and makes no network requests. Covered by unit tests and an installed-extension E2E test.
-- #14 Hover traffic: requests already sent now complete into the cache when the user moves on (at most one, so at most two in flight), and requests for the same artwork are joined. During a sweep, the pages request waits 150 ms and is skipped if the pointer has left. A synthetic benchmark (`tests/pages-traffic.test.ts`) shows, for example, a 10-card sweep going from 10 requests (9 aborted) to 2, and a re-hover from 650 to 250 ms. The trade-off is +150 ms for the last card of a sweep.
-- #11, #12 preparation: a DevTools snippet turns an undetected card into a sanitized synthetic fixture (its output is tested against the detector), and a measurement protocol and table cover metadata survival after posting. Both issues stay open for hands-on work.
-- #17 Docs sync: RELEASE_CHECKLIST rewritten as short per-target lists (source GO; Releases and Web Store NO-GO with remaining items), PR #8 and its CI recorded as done, IMPLEMENTATION_PLAN linked to GitHub issues, and TEST_STATUS, AGENTS, REQUIREMENTS and PRIVACY dates and counts updated. Results stay labelled synthetic, live or not run.
+- 「pixiv AI Metadata Inspector」から **Pixiv-Metatan**（メタ探）に名前を変えました。拡張の名前、画面の見出し、npmパッケージ名（`pixiv-metatan`）、リポジトリ（`marc2825/Pixiv-Metatan`、旧URLは転送されます）、内部の識別子（`metatan-*`、`METATAN_CHROME_PATH`）、文書をまとめて変えています。
+- マニフェストの説明とREADMEに、非公式であることを書きました。
 
-### Pre-publication audit — 2026-11-21
-- Audited the full history (all commits, GitHub PR refs, deleted files, binaries and image metadata), CI logs and artifacts, and PR text with gitleaks and a custom scan. No credentials found; historical local paths are harmless and history was not rewritten.
-- Added `THIRD_PARTY_NOTICES.md` (bundled WXT runtime license; how NovelAI, ComfyUI and AUTOMATIC1111 code was referenced or run without copying; trademarks).
-- SECURITY.md: interim reporting route until private vulnerability reporting is enabled (public repositories only), and the automated safeguards.
-- CI: actions pinned by commit SHA; new `npm audit --audit-level=high` and gitleaks jobs; uploads only sanitized evidence instead of the raw Playwright report.
-- Tests: static security guards (sinks, storage/cookie/network APIs, hosts, fetch policy, messaging) and adversarial tests (URL canonicalisation, message prototype pollution, spoofed contexts, hostile DOM labels, ReDoS-style input). Vitest 279 → 355.
-- `.gitignore`: secrets and signing keys, Playwright auth/trace/storage state, HAR, browser profiles, local Python environments.
-- README: contribution/security section, trademark disclaimer; reference-fixture instructions use a temporary directory instead of a fixed path.
+### 2026-11-22: Issue #9〜#17
 
-### Maintenance — 2026-11-19
-- First GitHub Actions run green on Node 22/24, including the Playwright job.
-- Merged Dependabot updates: actions/checkout, setup-node and upload-artifact v7 (clears the Node.js 20 deprecation warning); TypeScript 7.0.2 (same diagnostics as 5.9.3 on a strictness probe); jsdom 31.0.1; Playwright 1.65.1, Vite 8.3.8, Vitest 5.1.0, WXT 0.21.5, @types/node 26.6.6.
-- `engines.node` narrowed to `^22.22.2 || ^24.15.0 || >=26.0.0` to match jsdom 31.
+- #9 pixivの画面からMetadataを使えるようにしました。PixivBatchDownloaderにならい、拡張自身の原寸取得にだけ `Referer: https://www.pixiv.net/` を付けます。
+  - 仕組み: declarativeNetRequestのセッションルール1つで、この拡張・タブなし・GET・`i.pximg.net/img-original/` に限っています。
+  - しないこと: CORSの書き換え、Cookieの送信、pixivのページや他のサイトの通信の変更。
+  - 権限 `declarativeNetRequestWithHostAccess` を追加しました。
+  - 実測: Refererなしは403、ありは200。本番ビルドのService Workerからの取得はChromium 156で200でした。
+- #10 縦横比が極端な画像で、Stealth形式の行バッファを確保しないようにしました。1行が1 MiB（RGBAで262,144画素）を超える場合は確保の前に止め、Stealthを「未検査」にします。PNGのテキスト情報は引き続き読みます。40,000,000×1のIHDRで回帰テストをしています。
+- #13 EXIFは、読み取るタグの値だけを検証するようにしました。MakerNoteのような関係のないタグが巨大だったり壊れていたりしても、全体が失敗しなくなります。IFDの構造と対象タグの検証は今までどおりです。対象タグが重複していたら最初の値を使い、注記を出します。TIFFの型13（IFD）のポインタもたどるようにしました。
+- #16 マニフェストの検査を、テスト付きの関数（`scripts/manifest-policy.ts`）とTypeScriptのCLIに分けました。
+  - 必須の条件: pixiv向けのコンテンツスクリプトがトップフレーム・isolated・`document_idle`・JSファイル1つで1つだけ。backgroundはService Worker 1つ。ポップアップなし。
+  - 拒否するもの: 余分な権限やホスト、外部への公開設定（静的なDNRルール、web_accessible_resources、外部メッセージ、CSP、オプションやサイドパネル）。
+  - 合成したマニフェスト25通りでテストしています。
+- #15 ツールバーのアイコンから、手元の画像を調べる `inspector.html` を新しいタブで開けるようにしました。
+  - 開き方: `action.onClicked` と `tabs.create` なので、権限もポップアップも要りません。
+  - できること: ファイルの選択とドラッグ＆ドロップ。解析と表示は既存の `inspectLocalFile` / `renderResult` を使います。
+  - しないこと: 通信。ドロップされたURL（ファイル以外）は無視し、ページの外に落とされたファイルにブラウザが移動することもありません。
+  - 単体テストと、拡張を読み込んだE2Eテストがあります。
+- #14 ホバー時の通信を減らしました。
+  - 変更点:
+    - 送信済みの要求は、カーソルが別の作品に移っても完了させてキャッシュに入れます。そうした要求は1件までなので、同時に飛ぶのは最大2件です。
+    - 同じ作品への要求は1つにまとめます。
+    - サムネイルを次々になぞっているときは、要求を150ミリ秒待ち、その間にカーソルが離れたら送りません。
+  - 効果: 合成ベンチマーク（`tests/pages-traffic.test.ts`）では、10枚なぞったときの要求が10件（うち9件中断）から2件に、同じ作品に戻ったときの表示が650ミリ秒から250ミリ秒になりました。
+  - 代償: なぞった最後の1枚は150ミリ秒遅くなります。
+- #11、#12 実機での作業の準備をしました。どちらのIssueもまだ開いています。
+  - 検出できなかったカードを、伏せ字にした合成fixtureに変えるDevTools用スニペットを用意しました。出力は検出処理のテストに使っています。
+  - 投稿後にメタデータが残るかを測る手順と記録表を用意しました。
+- #17 文書を最新の状態に合わせました。
+  - RELEASE_CHECKLISTを、公開先ごとの短いリストにしました。ソースの公開は可、Releasesとウェブストアは残りの作業ありです。
+  - PR #8とそのCIを完了として記録し、IMPLEMENTATION_PLANとGitHubのIssueを対応させました。
+  - TEST_STATUS、AGENTS、REQUIREMENTS、PRIVACYの日付と数字を更新しました。
 
-## 2026-11-19 audit
+### 2026-11-21: 公開前の監査
 
-### Diagnosis
-- Isolated the live failure layers with measurements ([evidence](docs/evidence/live-layers-2026-11-19.json)): the headless-browser document 403 is a Cloudflare managed challenge (`cf-mitigated: challenge`). i.pximg.net rejects the worker's referer-less original requests with 403; the pages API works. Decision: keep the worker's no-credential/no-referrer fetch, do not work around it, and make the local-file path the documented route.
-- `verify:live` records the challenge classification instead of a bare 403.
+- 全履歴と、CIのログ・成果物、PRの文章を、gitleaksと独自のスキャンで調べました。
+  - 履歴には、すべてのコミット、GitHubのPRの参照、削除されたファイル、バイナリと画像のメタデータを含めています。
+  - 認証情報は見つかりませんでした。
+  - 過去のコミットに残っているローカルのパスは害がないので、履歴は書き換えていません。
+- `THIRD_PARTY_NOTICES.md` を追加しました。中身は、同梱しているWXTのランタイムのライセンス、NovelAI・ComfyUI・AUTOMATIC1111のコードをコピーせずにどう参考にし実行したか、商標についてです。
+- SECURITY.mdに、非公開の脆弱性報告が使えるようになるまでの連絡方法と、自動のチェックを書きました。非公開報告はGitHubでは公開リポジトリでしか使えません。
+- CIの変更:
+  - Actionsをコミットハッシュで固定しました。
+  - `npm audit --audit-level=high` とgitleaksのジョブを追加しました。
+  - Playwrightのレポートはそのまま上げず、伏せ字にした証跡だけを上げるようにしました。
+- テストの追加:
+  - 静的なガード: 危険な出力先、storage・cookie・通信のAPI、ホスト、取得の設定、メッセージ。
+  - 意地の悪い入力のテスト: URLの正規化、メッセージのプロトタイプ汚染、偽の送信元、pixivのDOM上の悪意あるラベル、ReDoS的な入力。
+  - Vitestは279件から355件になりました。
+- `.gitignore` に追加したもの: 秘密情報と署名鍵、Playwrightの認証・トレース・保存状態、HAR、ブラウザのプロファイル、Pythonの仮想環境。
+- READMEに、貢献と脆弱性報告の節と商標の注記を加えました。参照fixtureの作り方では、固定のパスをやめて一時ディレクトリを使うようにしました。
 
-### Added
-- NovelAI Stealth (`stealth_pngcomp`, alpha LSB) reader for 8-bit non-interlaced RGBA/grey+alpha PNGs, with early exit after the magic rows. Cross-checked with NovelAI's official writer and reader.
-- NovelAI V4/V4.5 character prompts, negatives and positions (official API schema), `cfg_rescale`, and `negative_prompt` as a fallback.
-- JPEG/WebP EXIF text reader: AUTOMATIC1111/Forge `UserComment`, ComfyUI WebP `prompt:`/`workflow:` tags, ImageDescription/Software/Make/Model/Artist. Cross-checked with unchanged AUTOMATIC1111 v1.10.1 and ComfyUI save/read functions.
-- More A1111 settings: Clip skip, Denoising strength, Hires upscale/steps/upscaler, TI hashes, Version.
-- Result fields: `stealth` state and a structured `error` (`layer`, `code`, `retryAfterMs`).
-- Pages with an unrecognised original URL shape (e.g. GIF/ugoira) keep their page number and preview, but are marked non-inspectable. Previously the whole listing failed.
-- pixiv `error:true` and 4xx JSON messages are shown as bounded plain text; 404/5xx/timeout explanations.
-- Tab-level 429 cooldown shared by both panels (survives a service-worker restart).
-- `srcset` preview using the API's small/regular derivatives.
-- Thumbnail detection: prefers the hovered image, checks up to 8 images in the link, supports overlay-link cards (same artwork ID required), and takes the author from the first named user link.
-- CI (typecheck, tests, Chrome/Edge builds, manifest permission guard; Playwright suites as a separate job), Dependabot, `check:manifest`, original icons, reproducible evidence export.
-- Tests: 191 → 279 Vitest cases; 6 → 12 upstream-verified reference fixtures.
+### 2026-11-19: メンテナンス
 
-### Changed
-- Artwork-page panel requests are bound to the artwork ID instead of the exact URL, so hash/query changes on the same artwork no longer cancel them.
-- One shared 300 ms ticker (was two), plus Navigation API / visibility triggers; rAF-throttled repositioning on scroll/resize.
-- If the page removes the UI host, it is re-attached instead of the extension silently disabling itself.
-- Escape still closes panels, but no longer swallows the key when focus is in pixiv's own inputs. When a focused button is disabled mid-operation, focus moves to the panel instead of `<body>`.
-- Result layout: status badge, problem and recovery first, prompts with inline copy, settings, provenance; signature/Stealth lines only for parsed PNGs (no "未検証" on network failures).
-- Unified, token-based light/dark styles with a non-pixiv accent colour.
-- iTXt text keeps a leading BOM; CRC uses an indexed loop.
-- JPEG without metadata is now "no metadata" (was "unsupported"); truncated JPEG is a parse error; GIF and other formats remain unsupported.
-- Exact devDependency pins; version single-sourced from `package.json`.
+- GitHub Actionsが初めてNode 22 / 24で通りました（Playwrightのジョブを含む）。
+- Dependabotの更新を取り込みました。
+  - Actions: actions/checkout、setup-node、upload-artifactをv7に上げ、Node.js 20の非推奨警告が消えました。
+  - TypeScript 7.0.2: 厳しめの設定での試しのチェックでは、5.9.3と同じ診断になりました。
+  - その他: jsdom 31.0.1、Playwright 1.65.1、Vite 8.3.8、Vitest 5.1.0、WXT 0.21.5、@types/node 26.6.6。
+- jsdom 31に合わせて、`engines.node` を `^22.22.2 || ^24.15.0 || >=26.0.0` に絞りました。
 
-### Docs
-- Reorganised README (Japanese + English summary), AGENTS, SECURITY (private reporting), PRIVACY, ARCHITECTURE, REQUIREMENTS, TEST_STATUS, MANUAL_TESTS; backlog rewritten as issue-ready items. Removed the development-history documents (`docs/WORK_REPORT.md`, `docs/CODEX_FIRST_PROMPT.md`) and superseded 2026-10-23 evidence; both remain in git history.
+## 2026-11-19: 監査
 
-## 2026-11-15 — hover previews (commit 9c77a03)
-- Hover previews from pixiv listings, multipage navigation, explicit inspection, bounded tab caches.
+### 原因の切り分け
 
-## 2026-10-23 — Gate 1 MVP (commits b31a0b9, 77790fb)
-- PNG text inspection on artwork pages, local files, worker boundary, NovelAI wrapped Comment, production MV3 tests.
+- 実際のpixivで失敗する箇所を、層ごとに測って切り分けました（[証跡](docs/evidence/live-layers-2026-11-19.json)）。
+  - ヘッドレスブラウザで文書が403になるのは、CloudflareのManaged Challenge（`cf-mitigated: challenge`）でした。
+  - Refererを付けないService Workerからの原寸取得は、i.pximg.netが403で断ります。
+  - ページ一覧のAPIは動きます。
+- その時点の判断: Service Workerからの取得は認証情報なし・Refererなしのまま回避策は入れず、手元のファイルで調べる方法を正式な手段としました（2026-11-22の #9 でRefererを付ける方針に変えています）。
+- `verify:live` は、403をそのまま記録せず、Challengeかどうかを判定して記録するようにしました。
+
+### 追加
+
+- NovelAIのStealth形式（`stealth_pngcomp`、アルファの最下位ビット）の読み取り。
+  - 8ビット・非インターレースのRGBAとグレー+アルファのPNGに対応します。
+  - 目印の行を読んで埋め込みがなければ、そこでやめます。
+  - NovelAI公式の書き込み・読み取り処理と結果を突き合わせています。
+- NovelAI V4 / V4.5のキャラクター別のプロンプト、ネガティブ、位置（公式APIの形式）に対応しました。`cfg_rescale` も読み、`negative_prompt` を代わりに使う処理も入れました。
+- JPEG / WebPのEXIFのテキストの読み取り。
+  - 読むもの: AUTOMATIC1111 / ForgeのUserComment、ComfyUIのWebPの `prompt:` / `workflow:`、ImageDescription、Software、Make、Model、Artist。
+  - 変更していないAUTOMATIC1111 v1.10.1とComfyUIの保存・読み取り処理と、結果を突き合わせています。
+- A1111の設定項目を増やしました: Clip skip、Denoising strength、Hires upscale / steps / upscaler、TI hashes、Version。
+- 結果に、Stealthの状態と、構造化したエラー（`layer`、`code`、`retryAfterMs`）を加えました。
+- GIFやうごイラのように原寸URLの形が対応外のページは、ページ番号とプレビューを残したまま「検査対象外」と表示します。以前は一覧全体が失敗していました。
+- エラーの表示:
+  - pixivの `error:true` や4xxのJSONのメッセージを、長さを区切ったテキストで出します。
+  - 404、5xx、タイムアウトのときの説明を加えました。
+- 429のあとの待機を、タブ単位で両方のパネルに共有しました。Service Workerが再起動しても続きます。
+- APIの小・中サイズの縮小画像を使った `srcset` のプレビュー。
+- サムネイルの検出の改善:
+  - カーソルを合わせた画像を優先します。
+  - リンク内の画像を8枚まで調べます。
+  - 画像にリンクが重なったカードも、作品IDが同じなら扱います。
+  - 作者名は、名前のある最初のユーザーリンクから取ります。
+- CIを用意しました。型チェック、テスト、Chrome / Edgeのビルド、マニフェストの権限チェックを行い、Playwrightは別のジョブです。
+- そのほかの追加: Dependabot、`check:manifest`、オリジナルのアイコン、再現できる証跡の書き出し。
+- テスト: Vitestを191件から279件に、上流で確かめた参照fixtureを6個から12個に増やしました。
+
+### 変更
+
+- 作品ページのパネルからの依頼を、URLそのものではなく作品IDに結び付けました。同じ作品でハッシュやクエリが変わっても取り消されません。
+- 300ミリ秒ごとの見回りを1つにまとめ（以前は2つ）、Navigation APIと表示状態の変化でも動くようにしました。スクロールやリサイズでの位置合わせは、requestAnimationFrameで間引いています。
+- ページ側がUIを消してしまったときは、黙って止まらずに付け直します。
+- キー操作とフォーカスの改善:
+  - Escでパネルは閉じますが、pixiv自身の入力欄にフォーカスがあるときはキーを横取りしません。
+  - 操作中にフォーカスのあるボタンが無効になったら、フォーカスを `<body>` ではなくパネルに移します。
+- 結果の並びを変えました。
+  - 表示の順: 状態の印、問題と対処法、プロンプト（その場でコピーできます）、設定、出どころ。
+  - 署名とStealthの行は、PNGを解析できたときだけ出します。通信に失敗したときに「未検証」とは出しません。
+- 明暗のテーマを、色の変数でそろえました。強調色はpixivの色と別にしています。
+- iTXtの先頭のBOMを残すようにし、CRCは表を引くループにしました。
+- 形式ごとの扱いを変えました。
+  - メタデータのないJPEGは「メタデータなし」にしました（以前は「未対応」）。
+  - 途中で切れたJPEGは解析エラーにしました。
+  - GIFなどは引き続き「未対応」です。
+- devDependenciesのバージョンを固定し、拡張のバージョンは `package.json` だけで管理するようにしました。
+
+### 文書
+
+- READMEを書き直しました（日本語と英語の要約）。
+- AGENTS、SECURITY（非公開での報告）、PRIVACY、ARCHITECTURE、REQUIREMENTS、TEST_STATUS、MANUAL_TESTSを整理しました。
+- 残りの作業は、そのままIssueにできる形で書き直しました。
+- 削除したもの: 開発の経緯の文書（`docs/WORK_REPORT.md`、`docs/CODEX_FIRST_PROMPT.md`）と、置き換え済みの2026-10-23の証跡。どれもgitの履歴には残っています。
+
+## 2026-11-15: ホバープレビュー（コミット 9c77a03）
+
+- pixivの一覧からのホバープレビュー、複数枚のページ送り、ボタンを押したときだけの検査、タブ内の上限付きキャッシュを入れました。
+
+## 2026-10-23: 最初の版（コミット b31a0b9、77790fb）
+
+- 作品ページでのPNGのテキスト情報の検査、手元のファイルの検査、Service Workerの境界、NovelAIのComment（envelope形式を含む）の読み取り、本番MV3ビルドのテストを入れました。
