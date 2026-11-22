@@ -115,8 +115,9 @@ describe('page listing robustness and precise pixiv errors', () => {
     await expect(getArtworkPages('123', undefined, vi.fn<typeof fetch>().mockResolvedValue(big))).rejects.toMatchObject({ code: 'pixiv-pages-http-400', detail: undefined });
   });
   it('explains each failing layer from evidence without claiming certainty', () => {
-    expect(accessExplanation('http-403', 'original')).toContain('Refererのない取得を拒否');
-    expect(accessExplanation('http-403', 'original')).toContain('Referer付与・Cookie移植・代理取得を行わない');
+    expect(accessExplanation('http-403', 'original')).toContain('画像配信サーバーが拒否しました');
+    expect(accessExplanation('http-403', 'original')).toContain('Cookieは送りません');
+    expect(accessExplanation('http-403', 'original')).toContain('この応答だけでは特定できません');
     expect(accessExplanation('pixiv-pages-http-403', 'pages')).toContain('この応答だけでは特定できません');
     expect(accessExplanation('pixiv-pages-http-404', 'pages', '削除')).toContain('pixivの応答:「削除」');
     expect(accessExplanation('http-503', 'original')).toContain('サーバー側のエラー');

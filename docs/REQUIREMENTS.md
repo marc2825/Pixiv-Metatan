@@ -41,15 +41,15 @@ Chrome / Chromium Edge（MV3、最小120）で、pixivのサムネイルのプ�
 - 一覧を走査・巡回しない。ホバー/フォーカスした作品のページ一覧APIだけを使う。原寸URLはAPIの応答から採用し、再構築しない。
 - 表示URLはHTTPSの`i.pximg.net`縮小画像パスと作品/ページを検証する。解析URLは`https://i.pximg.net/img-original/img/…/{id}_p{page}.{png|jpg|jpeg|webp}`だけ。
 - メッセージは自拡張のpixiv top frame、tab ID、作品ID（作品パネル）または操作時の完全なURL（ホバー）を取得前後に照合する。ページスクリプト用の橋や汎用fetchを公開しない。
-- 原寸取得はWorkerから`credentials:omit`・`no-referrer`・`redirect:error`で行い、全タブで1件。自動再試行・先読みなし。429はRetry-After（最低60秒）をWorkerとタブで尊重する。i.pximg.netがこれを拒否する場合（2026-11-19に403を確認）も回避せず、説明とローカル読込を提供する。
+- 原寸取得はWorkerから`credentials:omit`・`redirect:error`で行い、全タブで1件。自動再試行・先読みなし。i.pximg.netが要求する`Referer: https://www.pixiv.net/`だけを、セッションルールで付ける（この拡張が開始・タブなし・GET・`img-original`に限定。応答ヘッダー・他サイト・pixivのページの通信は変更しない。2026-11-22のメンテナー決定、Issue #9）。429はRetry-After（最低60秒）をWorkerとタブで尊重する。失敗時は説明とローカル読込を提供する。
 - キャッシュ: 一覧24件/推定2 MiB/2分、結果8件/推定8 MiB/2分のLRU（タブ内メモリ）。画像バイト列はキャッシュしない。SPA・BFCache・破棄で全消去。
 - 上限: API JSON 1 MiB、原寸/ローカル48 MiB、テキスト2 MiB、40百万画素、Stealth圧縮1 MiB、通信15秒。
-- 閉じたShadow DOM、`textContent`、最小のpixiv/pximgホスト権限、API権限なし。Cookie・トークンを読まない。
+- 閉じたShadow DOM、`textContent`、最小のpixiv/pximgホスト権限。API権限は`declarativeNetRequestWithHostAccess`（上記Refererのみ）。Cookie・トークンを読まない。
 - 画像・Promptは端末内だけで処理し、永続保存・外部送信・追跡ライブラリを導入しない。
 
 ## 非目標
 
-全作品の自動解析、バッチ収集、ログイン・年齢・アクセス・ホットリンク・レート制限の回避、ヘッダー偽装、外部proxy、画像の見た目によるAI判定、署名の検証を伴わない「本物」判定。
+全作品の自動解析、バッチ収集・一括ダウンロード、ログイン・年齢・アクセス・レート制限の回避、上記以外のヘッダー変更やCORS応答の書き換え、外部proxy、画像の見た目によるAI判定、署名の検証を伴わない「本物」判定。
 
 ## リリース条件
 

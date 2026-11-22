@@ -6,7 +6,7 @@ Status 2026-11-21: **source publication: conditional GO (merge the pre-publicati
 - [x] Locked, exact devDependencies; `npm audit`: 0 vulnerabilities; no runtime dependencies besides the bundled WXT runtime (MIT).
 - [x] `npm run typecheck`, `npm test`, `npm run build`, `npm run build:edge`, `npm run check:manifest` pass.
 - [x] `npm run test:browser` and `npm run test:extension` pass locally against synthetic responses.
-- [x] Manifest: no API permissions; hosts `www.pixiv.net` and `i.pximg.net` only; top-frame isolated content script; icons present.
+- [x] Manifest: API permission `declarativeNetRequestWithHostAccess` only (narrow Referer session rule); hosts `www.pixiv.net` and `i.pximg.net` only; top-frame isolated content script; icons present.
 - [x] Parsers cross-checked with upstream-verified synthetic fixtures (NovelAI writer/reader, ComfyUI, AUTOMATIC1111).
 - [x] No third-party artwork, R18 images, uploads, telemetry, credential handling or bypass mechanisms.
 - [x] README, SECURITY and PRIVACY match the implementation.
@@ -29,7 +29,7 @@ These can only be changed in the repository settings. Private vulnerability repo
 ## Before a packaged release (GitHub Releases)
 - [ ] Manual live acceptance in a normal Chrome on owner-controlled or legitimately viewable artwork ([MANUAL_TESTS.md](MANUAL_TESTS.md) items 1–8), logged out and logged in.
 - [ ] Real Edge and minimum version 120.
-- [ ] Release notes state plainly that **Metadata** fetching is expected to be rejected (403) and that local files are the supported route.
+- [ ] Release notes explain the pixiv Referer on the extension's own original request (and its narrow scope), that live Metadata inside pixiv pages was verified manually, and the local-file route for failures.
 - [ ] Build with `npm run zip` / `npm run zip:edge` from a clean checkout; attach SHA-256 of the zips.
 - [ ] Explicit maintainer approval for tagging and publishing.
 

@@ -1,6 +1,6 @@
 # Architecture
 
-更新: 2026-11-19。追加依存なし・バックエンドなし・MV3のAPI権限なし。
+更新: 2026-11-22。追加依存なし・バックエンドなし。MV3のAPI権限は`declarativeNetRequestWithHostAccess`だけ（原寸取得のReferer用）。
 
 ## 構成と取得経路
 
@@ -17,6 +17,7 @@ pixiv top frame / isolated content script / closed Shadow DOM
        │         自拡張 / frame 0 / tab ID / pixiv origin / 現在URL（取得前後）
        │         原寸URLのhost・path・作品ID・ページ / 全タブ1枠 / 429 cooldown
        │         fetch(credentials:omit, referrerPolicy:no-referrer, redirect:error)
+       │           + session rule: Referer: https://www.pixiv.net/（この拡張・タブなし・GET・img-originalのみ）
        │         15秒 / 実受信48 MiB / MIME + magic → inspectImage → JSON互換の結果
        └─ ファイル選択 → inspectLocalFile → 同じ inspectImage（作品とは関連付けない）
 
@@ -25,9 +26,9 @@ inspectImage (src/metadata, pixiv/UIから独立)
   JPEG/WebP → exif.ts（APP1 / RIFF EXIF → TIFF → 文字列タグ）→ normalize.ts
 ```
 
-表示と解析は別経路です。`<img>`はページの通常の表示条件（ブラウザ既定のReferrer-Policy）に従い、拡張はRefererを指定しません。Workerの原寸取得はRefererもCookieも付けません。
+表示と解析は別経路です。`<img>`はページの通常の表示条件（ブラウザ既定のReferrer-Policy）に従い、拡張はページの通信を変更しません。Workerの原寸取得はCookieを付けず、pixivのRefererだけを付けます。
 
-## 原寸取得の403（実測と方針）
+## 原寸取得とReferer（実測と方針）
 
 2026-11-19の実測（[証跡](evidence/live-layers-2026-11-19.json)）:
 
@@ -35,7 +36,19 @@ inspectImage (src/metadata, pixiv/UIから独立)
 - 通常のHTTPクライアントではdocument 200、pages APIは200で、URL形状は検証器と一致しました。
 - 原寸・縮小とも、Cookie・Refererなし（Workerと同じ条件）の要求には**403**でした。pixivのページはReferrer-Policyを指定していないため、ページ上の`<img>`はブラウザ既定で`Referer: https://www.pixiv.net/`を送ります。
 
-方針（メンテナー決定）: Workerの取得条件は変更しません。Referer/Origin操作、declarativeNetRequestのヘッダー書換え、ページ文脈（content script）でのバイト取得、Cookie移植、proxy、再試行は導入しません。403はUIで層・根拠・不確実性とともに説明し、「pixivで原寸を表示して保存 → ローカルファイルを検査」を案内します。
+2026-11-22の実測（[証跡](evidence/live-referer-2026-11-22.json)）:
+
+- 同じ原寸に、Cookieなし・`Referer: https://www.pixiv.net/`ありで要求すると**200（image/jpeg）**でした。403の原因はRefererです。応答に`Access-Control-Allow-Origin`はありません。
+- 本番ビルドをChromium 156に読み込み、Service Workerから製品と同じ条件で取得すると、セッションルールが適用されて**200**になりました。同じ原寸を通常のタブの`<img>`で読むと失敗します。ルールがページの通信に及ばないことも確認済みです。
+
+方針（メンテナー決定、2026-11-22、Issue #9）: PixivBatchDownloaderの方式（declarativeNetRequestでi.pximg.netへの全要求にRefererを設定し、応答の`Access-Control-Allow-Origin`を`*`に書き換える）に倣いつつ、範囲を絞りました。
+
+- `src/network/referer-rule.ts`のセッションルール1件で、`Referer: https://www.pixiv.net/`を付けます。対象は、この拡張が開始した要求（initiator = 拡張ID）で、タブに属さず（Service Worker）、GETで、`https://i.pximg.net/img-original/`への要求だけです。
+- 応答ヘッダー（CORS）は書き換えません。Workerはホスト権限があるためCORSの制約を受けません。他サイトやpixivのページの通信、Cookie、その他のヘッダーは変更しません。
+- 取得は従来どおり、クリック時の1枚・全タブで1件・再試行なし・先読みなしです。ルールの導入に失敗しても致命的ではありません（取得は403となり、理由を表示します）。
+- PixivBatchDownloader（GPL-3.0-or-later）のコードはコピーしていません。標準APIでの独自実装です。
+
+それ以前（2026-11-19〜21）はReferer付与を行わない方針で、Metadataは実pixivで403になる想定でした。
 
 ## 信頼境界
 

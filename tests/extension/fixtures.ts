@@ -7,7 +7,7 @@ import { InspectorDriver } from './driver';
 import { originalUrl, pagePayload, png, pngWithText, previewUrl } from '../fixtures';
 
 export interface ImageReply { status?: number; mime?: string; body?: Uint8Array; delayMs?: number; failure?: boolean }
-export interface NetworkRecord { kind: 'document' | 'pages' | 'original' | 'preview' | 'other'; worker: boolean; configuredStatus?: number; status?: number; mime?: string; page?: number; outcome?: 'finished' | 'failed' }
+export interface NetworkRecord { kind: 'document' | 'pages' | 'original' | 'preview' | 'other'; worker: boolean; configuredStatus?: number; status?: number; mime?: string; page?: number; outcome?: 'finished' | 'failed'; cookie?: boolean }
 export interface TestExtension {
   context: BrowserContext; worker: Worker; records: NetworkRecord[]; unexpected: string[];
   replies: Map<number, ImageReply>; apiStatus: number; pageCount: number;
@@ -77,6 +77,10 @@ export const test = base.extend<{ extension: TestExtension }>({
           const page = Number(image[1]), reply = replies.get(page) ?? {};
           const status = reply.status ?? 200, mime = reply.mime ?? 'image/png';
           record.kind = 'original'; record.page = page;
+          // Whether any cookie was sent. (Playwright interception sees requests before declarativeNetRequest
+          // edits them, so the Referer set by the session rule is verified against the real server instead:
+          // docs/evidence/live-referer-2026-11-22.json.)
+          record.cookie = 'cookie' in await request.allHeaders();
           if (!reply.failure) record.configuredStatus = status;
           if (reply.delayMs) await new Promise(resolve => setTimeout(resolve, reply.delayMs));
           if (reply.failure) return route.abort('failed');

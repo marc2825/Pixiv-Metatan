@@ -4,6 +4,9 @@ All notable changes. Dates are JST. The project is unreleased; the version stays
 
 ## [Unreleased]
 
+### Issues #9–#17 — 2026-11-22
+- #9 Original Metadata on pixiv: by maintainer decision (following PixivBatchDownloader's approach), the worker's own original request now carries `Referer: https://www.pixiv.net/` via one declarativeNetRequest session rule, scoped to this extension, no tab, GET and `i.pximg.net/img-original/`. No CORS rewriting, no cookies, and pages or other sites are untouched. New permission `declarativeNetRequestWithHostAccess`. Live: 403 without and 200 with the Referer; the production worker fetch returns 200 in Chromium 156.
+
 ### Pre-publication audit — 2026-11-21
 - Audited the full history (all commits, GitHub PR refs, deleted files, binaries and image metadata), CI logs and artifacts, and PR text with gitleaks and a custom scan. No credentials found; historical local paths are harmless and history was not rewritten.
 - Added `THIRD_PARTY_NOTICES.md` (bundled WXT runtime license; how NovelAI, ComfyUI and AUTOMATIC1111 code was referenced or run without copying; trademarks).

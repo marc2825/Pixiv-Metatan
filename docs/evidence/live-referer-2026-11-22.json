@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "mode": "live-referer-check",
+  "measuredAt": "2026-11-22",
+  "decision": "maintainer decision 2026-11-22 (issue #9): set Referer https://www.pixiv.net/ on the extension's own original request only",
+  "target": "the same public all-ages artwork as live-layers-2026-11-19.json; artwork ID and URLs intentionally not recorded",
+  "credentialsUsed": false,
+  "imageBytesStored": false,
+  "requests": 4,
+  "checks": {
+    "pages-api-plain-http": { "status": 200, "mime": "application/json; charset=utf-8" },
+    "original-head-no-cookie-no-referer": { "status": 403, "mime": "text/html" },
+    "original-head-no-cookie-pixiv-referer": { "status": 200, "mime": "image/jpeg", "accessControlAllowOrigin": null, "server": "nginx" },
+    "production-build-worker-fetch": {
+      "browser": "Chromium 156.0.8078.4 (Playwright, headless, fresh profile)",
+      "requestOptions": "credentials: omit, referrerPolicy: no-referrer, redirect: error (same as src/network/inspector.ts)",
+      "sessionRule": "id 1, tabIds [-1], initiatorDomains [extension ID], urlFilter |https://i.pximg.net/img-original/, requestMethods [get], resourceTypes [xmlhttprequest]",
+      "status": 200,
+      "mime": "image/jpeg",
+      "bodyCancelledUnread": true
+    },
+    "ordinary-tab-img-same-original": { "result": "load error (rule does not apply to page requests)" }
+  },
+  "notMeasured": [
+    "Metadata button inside a real pixiv tab (document blocked by a Cloudflare challenge for automated browsers; manual check, issue #11)",
+    "logged-in or age-restricted originals",
+    "real Edge"
+  ]
+}

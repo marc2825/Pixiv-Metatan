@@ -171,7 +171,7 @@ describe('structured worker failures', () => {
     const result = await worker.handle(request, sender);
     expect(result).toMatchObject({ status: 'access-denied', error: { layer: 'original', code: 'http-403' } });
     expect(result?.error?.retryAfterMs).toBeUndefined();
-    expect(result?.notes.join(' ')).toContain('Refererのない取得を拒否'); expect(result?.notes.join(' ')).toContain('ローカルファイルを検査');
+    expect(result?.notes.join(' ')).toContain('画像配信サーバーが拒否しました'); expect(result?.notes.join(' ')).toContain('ローカルファイルを検査');
     expect(worker.fetcher).toHaveBeenCalledOnce();
     expect(worker.fetcher.mock.calls[0]?.[1]).toMatchObject({ credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error' });
   });
@@ -212,5 +212,15 @@ describe('message boundary attacks', () => {
     const result = JSON.parse(JSON.stringify(await worker.handle(request, sender)));
     expect(Object.hasOwn(result.rawTextChunks, '__proto__')).toBe(true);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+  it('awaits the Referer rule after context checks and before the single original fetch', async () => {
+    const order: string[] = [];
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => { order.push('fetch'); return new Response(png(), { headers: { 'content-type': 'image/png' } }); });
+    const tabUrl = vi.fn().mockImplementation(async () => { order.push('tab'); return sender.url; });
+    const worker = createInspector({ extensionId: 'extension', fetcher, tabUrl, beforeFetch: async () => { order.push('rule'); } });
+    expect((await worker.handle(request, sender))?.status).toBe('no-metadata');
+    expect(order).toEqual(['tab', 'rule', 'fetch', 'tab']);
+    const denied = createInspector({ extensionId: 'extension', fetcher, tabUrl: vi.fn().mockResolvedValue('https://www.pixiv.net/artworks/9'), beforeFetch: vi.fn() });
+    expect((await denied.handle(request, sender))?.status).toBe('access-denied');
   });
 });

@@ -7,9 +7,11 @@ afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
 
 it('wires the MV3 worker with Chrome-compatible asynchronous sendResponse and navigation cancellation', async () => {
   const addListener = vi.fn(), updated = vi.fn(), removed = vi.fn();
+  const extensionId = 'abcdefghijklmnopabcdefghijklmnop', updateSessionRules = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal('defineBackground', (main: () => void) => main());
   vi.stubGlobal('browser', {
-    runtime: { id: 'test-extension', onMessage: { addListener } },
+    runtime: { id: extensionId, onMessage: { addListener } },
+    declarativeNetRequest: { updateSessionRules },
     tabs: { get: vi.fn().mockResolvedValue({ url: 'https://www.pixiv.net/artworks/123' }), onUpdated: { addListener: updated }, onRemoved: { addListener: removed } },
   });
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(png(), { headers: { 'content-type': 'image/png' } }));
@@ -17,7 +19,8 @@ it('wires the MV3 worker with Chrome-compatible asynchronous sendResponse and na
   await import('../entrypoints/background');
   expect(addListener).toHaveBeenCalledOnce(); expect(updated).toHaveBeenCalledOnce(); expect(removed).toHaveBeenCalledOnce();
   const listener = addListener.mock.calls[0]![0] as (message: unknown, sender: Sender, response: (value: InspectionResult) => void) => true | undefined;
-  const sender = { id: 'test-extension', frameId: 0, url: 'https://www.pixiv.net/artworks/123', tab: { id: 7 } };
+  expect(updateSessionRules).toHaveBeenCalledExactlyOnceWith({ removeRuleIds: [1], addRules: [expect.objectContaining({ condition: expect.objectContaining({ initiatorDomains: [extensionId], tabIds: [-1] }) })] });
+  const sender = { id: extensionId, frameId: 0, url: 'https://www.pixiv.net/artworks/123', tab: { id: 7 } };
   const sendResponse = vi.fn();
   expect(listener({ type: 'unrelated' }, sender, sendResponse)).toBeUndefined(); expect(sendResponse).not.toHaveBeenCalled();
   expect(listener({ type: 'INSPECT_PIXIV_IMAGE', artworkId: '123', page: 0, requestId: 'request-1', url: originalUrl() }, sender, sendResponse)).toBe(true);

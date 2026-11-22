@@ -25,7 +25,7 @@ describe('static security guards for extension code', () => {
     ['HTML/script injection sinks', /\b(?:innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\s*\(|new\s+Function\b|createContextualFragment|DOMParser)\b/],
     ['string timers', /\bset(?:Timeout|Interval)\s*\(\s*['"`]/],
     ['persistent or shared storage', /\b(?:localStorage|sessionStorage|indexedDB|caches\.open|(?:browser|chrome)\.storage)\b/],
-    ['cookie or credential APIs', /\b(?:document\.cookie|(?:browser|chrome)\.cookies|webRequest|declarativeNetRequest)\b/],
+    ['cookie or credential APIs', /\b(?:document\.cookie|(?:browser|chrome)\.cookies|webRequest)\b/],
     ['other network APIs', /\b(?:XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b|\bimport\s*\(/],
     ['external messaging', /\bonMessageExternal\b|\bonConnectExternal\b|\bexternally_connectable\b/],
     ['navigation or popups', /\bwindow\.open\s*\(|location\.(?:assign|replace)\s*\(|location\.href\s*=[^=]/],
@@ -45,6 +45,13 @@ describe('static security guards for extension code', () => {
     expect(inspector).toMatch(/referrerPolicy:\s*'no-referrer'/);
     expect(inspector).toMatch(/redirect:\s*'error'/);
     expect(inspector).not.toMatch(/\breferrer:\s*['"`]|\bheaders\s*:/);
+  });
+  it('modifies headers only through the narrow Referer session rule (issue #9)', () => {
+    expect(offenders(/declarativeNetRequest/)).toEqual(['entrypoints/background.ts']);
+    expect(offenders(/updateSessionRules|updateDynamicRules|updateEnabledRulesets/)).toEqual(['src/network/referer-rule.ts']);
+    const rule = code(files.find(file => file.path.endsWith('network/referer-rule.ts'))!.code);
+    expect(rule).not.toMatch(/responseHeaders|Access-Control|Cookie|Origin'|redirect|'block'|allowAllRequests/);
+    expect(rule).toMatch(/initiatorDomains: \[extensionId\]/); expect(rule).toMatch(/tabIds: \[TAB_ID_NONE\]/);
   });
   it('writes to the clipboard only from the result renderer', () => {
     expect(offenders(/navigator\.clipboard/)).toEqual(['src/ui/result.ts']);
