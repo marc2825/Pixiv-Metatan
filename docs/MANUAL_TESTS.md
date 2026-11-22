@@ -25,6 +25,44 @@
 
 429やタイムアウトを実サイトで誘発しないでください（合成試験で確認済み）。第三者の画像・Prompt・認証情報をリポジトリや証跡に保存しないでください。
 
+## 検出されないカードを合成fixtureにする（Issue #11）
+
+検出されないカードがあれば、DevToolsのElementsパネルでそのカード（`li`など）を選択し、Consoleで次を実行します。構造だけをクリップボードにコピーします。5桁以上の数字（作品ID・ユーザーID）は`123`に、画像URLの日付は合成値に置き換え、テキスト・属性値・クラス名・画像は含めません。結果を確認してから`tests/thumbnail.test.ts`に追加してください。
+
+```js
+copy((function shape(node, depth = 0) {
+  if (!(node instanceof Element) || depth > 10) return '';
+  const tag = node.tagName.toLowerCase(), synthetic = value => value.replace(/\d{5,}/g, '123').replace(/\d{4}\/\d{2}\/\d{2}\/\d{2}\/\d{2}\/\d{2}/g, '2026/10/22/00/00/00');
+  const attrs = [];
+  if (tag === 'a' && node.getAttribute('href')) attrs.push(`href="${synthetic(new URL(node.href).pathname)}"`);
+  if (tag === 'img') attrs.push(`src="${synthetic(node.currentSrc || node.src).replace(/^https:\/\/(?!i\.pximg\.net\/)[^/]+/, 'https://example.invalid')}"`);
+  for (const name of node.getAttributeNames()) if (name.startsWith('data-') || name === 'role') attrs.push(`${name}=""`);
+  const inner = [...node.children].map(child => shape(child, depth + 1)).join('');
+  const open = `<${tag}${attrs.length ? ' ' + attrs.join(' ') : ''}>`;
+  return tag === 'img' ? open : `${open}${inner}</${tag}>`;
+})($0));
+```
+
+## pixiv投稿後のメタデータ残存の実測（Issue #12）
+
+pixivへの投稿・変換後に生成情報が残るかを、**自分が権利を持つ画像だけ**で確認します。原本・投稿画像・Prompt・Cookieはリポジトリへ入れず、集計表だけを記録します。特定の画像についての「AI製／人間製」の判断には使いません。
+
+1. 形式ごとに検証用画像を用意します（NovelAI形式のPNGテキスト、NovelAI Stealth、ComfyUI PNG、A1111/Forge PNG、JPEG/WebPのEXIFなど、用意できる範囲）。各ファイルの`sha256sum`、寸法、拡張の**ローカル検査ページ**での結果（形式・生成元の推定・Stealth・EXIF）を記録します。
+2. 正規の手段でpixivに投稿します（公開範囲は自分で判断）。
+3. 投稿後、拡張のホバーから**Metadata**で原寸を検査し、結果とHTTP状態を記録します。あわせて、pixivの画像ビューアで原寸を開いてブラウザで保存し、ハッシュ・寸法を記録して、ローカル検査ページでも確認します。
+4. 表示用縮小画像（ホバーで表示される画像）は、ブラウザで保存したものを同様に確認します（ある場合）。
+5. 取得できなかったもの（403・404・429など）は「メタデータなし」と分け、「検査不能」として数えます。
+
+| 形式 | サンプル数 | 生成直後: 情報あり | 投稿後の原寸: 情報あり / なし / 検査不能 | 原寸のハッシュ一致 | 縮小画像: 情報あり / なし / 検査不能 | 備考 |
+|---|---|---|---|---|---|---|
+| NovelAI PNGテキスト | | | | | | |
+| NovelAI Stealth | | | | | | |
+| ComfyUI PNG | | | | | | |
+| A1111/Forge PNG | | | | | | |
+| JPEG/WebP EXIF | | | | | | |
+
+サンプル数と選定条件を併記し、少数の結果を一般化しすぎないでください。
+
 ## 403の切り分け
 
 | 層 | 取得元 | 2026-11-19の実測 | 失敗時の扱い |
