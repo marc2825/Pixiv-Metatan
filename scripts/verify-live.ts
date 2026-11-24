@@ -50,14 +50,14 @@ async function waitFor<T>(read: () => Promise<T>, accept: (value: T) => boolean,
   }
   throw new Error('verification-step-timeout');
 }
-function classifySummary(summary: string): { result: Outcome; reason: string } {
-  if (summary.startsWith('テキスト情報あり /')) return { result: 'PASS', reason: `found:${summary.split(' / ')[1]}` };
-  if (summary.startsWith('対応範囲にメタデータなし /')) return { result: 'PASS', reason: `no-metadata:${summary.split(' / ')[1]}` };
-  if (summary.startsWith('未対応形式 /')) return { result: 'PASS', reason: `unsupported-format:${summary.split(' / ')[1]}` };
+/** Classify from the verdict sentence and the format line only; prompts and URLs are never recorded. */
+async function classifyResult(driver: InspectorDriver): Promise<{ result: Outcome; reason: string }> {
+  const title = await driver.summary();
+  const format = /形式: ([A-Z]+)/.exec(await driver.text(ui.result))?.[1]?.toLowerCase() ?? 'unknown';
+  if (['で生成したと書かれています', 'の生成情報が入っています', '生成ツールは書かれていません'].some(end => title.endsWith(end))) return { result: 'PASS', reason: `found:${format}` };
+  if (title === '生成情報は見つかりませんでした') return { result: 'PASS', reason: `no-metadata:${format}` };
+  if (title === '読めない形式です') return { result: 'PASS', reason: `unsupported-format:${format}` };
   return { result: 'FAIL', reason: 'inspection-failed-see-http-status' };
-}
-async function resultSummary(driver: InspectorDriver): Promise<string> {
-  return driver.summary();
 }
 async function run(page: Page) {
   const response = await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 20_000 });
@@ -78,23 +78,26 @@ async function run(page: Page) {
   evidence.checks.injection = { result: 'PASS', reason: 'production-closed-shadow-root' };
   if (!artwork) { evidence.notes.push('Connectivity only. No artwork or original selected.'); return; }
   await driver.click(ui.toggle);
-  await waitFor(() => driver.text(ui.status), text => !text.includes('取得中'));
-  const options = await driver.options();
-  evidence.checks.pagesApi = options.length ? { result: 'PASS', reason: `candidate-count:${options.length}` } : { result: 'FAIL', reason: 'no-accessible-candidates' };
-  if (options.length && pageIndex < options.length) {
-    await driver.select(pageIndex);
+  // The page list has loaded (or failed) when the main button is usable, a page is marked unreadable, or an error shows.
+  await waitFor(async () => !(await driver.disabled(ui.scan)) || !(await driver.hidden('.hover-unavailable')) || !(await driver.hidden(ui.status)), ready => ready);
+  const failed = !(await driver.hidden(ui.status));
+  const count = failed ? 0 : await driver.hidden(ui.counter) ? 1 : Number(/\/ (\d+)$/.exec(await driver.text(ui.counter))?.[1] ?? 0);
+  evidence.checks.pagesApi = count ? { result: 'PASS', reason: `candidate-count:${count}` } : { result: 'FAIL', reason: 'no-accessible-candidates' };
+  if (count && pageIndex < count) {
+    for (let i = 0; i < pageIndex; i++) await driver.click(ui.next); // Switching pages fetches no original.
     await driver.click(ui.scan); // Exactly one selected original, never a loop over pages.
-    await waitFor(() => driver.disabled(ui.scan), disabled => !disabled);
-    const summary = await resultSummary(driver);
-    evidence.checks.formatAndResult = classifySummary(summary);
+    await waitFor(() => driver.summary(), title => title !== '');
+    evidence.checks.formatAndResult = await classifyResult(driver);
     const original = evidence.network.find(record => record.kind === 'original');
     evidence.checks.original = { result: original?.status === 200 ? 'PASS' : 'FAIL', status: original?.status, mime: original?.mime ?? undefined };
-  } else if (options.length) evidence.notes.push('Requested page is outside accessible candidate range. Inspect was not clicked.');
+  } else if (count) evidence.notes.push('Requested page is outside accessible candidate range. Inspect was not clicked.');
   if (values['local-file']) {
+    // The local route is offered after a failure (pages API or original), as in the product.
+    if (await driver.hidden(ui.file)) { evidence.notes.push('Local file not offered: nothing failed, so it was not used.'); return; }
     await waitFor(() => driver.disabled(ui.file), disabled => !disabled);
     await driver.localFile(resolve(values['local-file']));
-    await waitFor(() => driver.disabled(ui.file), disabled => !disabled);
-    evidence.checks.localFallback = classifySummary(await resultSummary(driver));
+    await waitFor(() => driver.text(ui.result), text => text.includes('手元のファイル'));
+    evidence.checks.localFallback = await classifyResult(driver);
   }
 }
 try {

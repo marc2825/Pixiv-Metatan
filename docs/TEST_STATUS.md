@@ -1,9 +1,9 @@
 # 検証状況
 
-2026-11-22（日本時間）時点の状況です。
+2026-11-24（日本時間）時点の状況です。
 
 - 実装と合成データでのテスト: PASS。
-- 実際のpixivでの受け入れ確認: まだです。pixivのページの中でのホバーとMetadataは NOT VERIFIED です。
+- 実際のpixivでの受け入れ確認: まだです。pixivのページの中でのビューア（ホバーと作品ページの「生成情報」ボタン）は NOT VERIFIED です。2026-11-24に作り直したUIも、合成ページでしか確かめていません。
 - Service Workerの原寸取得（pixivのReferer付き、Cookieなし）は、2026-11-22に実際のi.pximg.netで200を返しました。
 
 ## 自動テスト
@@ -11,12 +11,12 @@
 | コマンド | 結果 | 範囲 |
 |---|---|---|
 | `npm run typecheck` | PASS | WXTの準備と、TypeScriptのstrictでのチェック（src、entrypoints、tests、scripts） |
-| `npm test` | PASS（15ファイル / 412件） | 下の注を参照 |
+| `npm test` | PASS（15ファイル / 422件） | 下の注を参照 |
 | `npm run build` | PASS | Chrome MV3。background、コンテンツスクリプト、検査ページ（`inspector.html`）、アイコン |
 | `npm run build:edge` | PASS | Edge MV3。サイズはChromeと同じ。ビルドしただけで、実際のEdgeでは動かしていない |
 | `npm run check:manifest` | PASS | Chrome / Edgeとも、権限は `declarativeNetRequestWithHostAccess` だけ。ホストはpixivとpximgだけ。トップフレーム・isolatedのコンテンツスクリプトがちょうど1つ |
 | `npm run test:browser` | PASS（12件） | テスト用アダプタ、合成ページと合成HTTP、Chromium 156 |
-| `npm run test:extension` | PASS（18件） | 本番ビルドのMV3（closed root、runtime messaging、Service Worker、検査ページ）を使い捨てのプロファイルで実行。通信はすべて合成（[証跡](evidence/mv3-synthetic-2026-11-22.json)） |
+| `npm run test:extension` | PASS（18件） | 本番ビルドのMV3（closed root、runtime messaging、Service Worker、検査ページ）を使い捨てのプロファイルで実行。通信はすべて合成（[証跡](evidence/mv3-synthetic-2026-11-24.json)） |
 | `npm audit` | 脆弱性0件 | devDependenciesのみ |
 | `git diff --check` | PASS | |
 | GitHub Actions CI | PASS | 下の注を参照 |
@@ -53,7 +53,7 @@
 | 原寸（Cookieなし、`Referer: https://www.pixiv.net/` あり。通常のHTTP） | PASS（200、image/jpeg） | 2026-11-22、Refererを付ける方針に決めた後（issue #9）。レスポンスに `Access-Control-Allow-Origin` はない（[証跡](evidence/live-referer-2026-11-22.json)） |
 | 本番ビルドのService Workerからの取得（セッションルールあり、Chromium 156、実際のi.pximg.net） | PASS（200、image/jpeg） | 製品と同じ取得の設定。セッションルールは起動時に登録 |
 | 同じ原寸を通常のタブの `<img>` で読む（ルールの範囲の確認） | PASS（期待どおり読み込みに失敗） | ルールはページからの要求を変えない |
-| 実際のpixivのタブの中での拡張（一覧のDOM、プレビューの `<img>`、Metadataのクリック） | NOT RUN | 自動化ではページの段階で止められる。[手動での確認](MANUAL_TESTS.md)が必要（issue #11） |
+| 実際のpixivのタブの中での拡張（一覧のDOM、プレビューの `<img>`、「生成情報を見る」、作り直したUIの見え方） | NOT RUN | 自動化ではページの段階で止められる。[手動での確認](MANUAL_TESTS.md)が必要（issue #11） |
 | ログイン時、年齢制限のある作品 | NOT RUN | 認証情報は持ち込んでいない |
 | 実際のEdge、Chrome / Edge 120、高DPI、長時間の使用 | NOT RUN | |
 | 実際の生成画像でのStealth / V4 / EXIF、pixivに投稿した後に残るか | NOT RUN | 上流で確かめた合成fixtureだけ。手順はMANUAL_TESTSにある（issue #12） |
@@ -118,6 +118,13 @@ live-connectivityのファイルには、測定したときのビルドの成果
   - MIMEと先頭バイト、読み込み中の上限。
 - UI:
   - 250ms / 200msのタイミング、ホイール、キー操作、Escの伝わり方、フォーカスの保持。
+  - 「生成情報を見る」を押したあとは離れても閉じず、ほかのカードでは開かず、×・Esc・外のクリックで閉じる。
+  - 結果のシートを開いても画像が動かず、シートは画像の横に出て画面に収まる（1100×850）。狭い画面（360×640）では画像の下に出て収まる。
+  - pixivが返す縦横の大きさで画像の枠を決める。1枚の作品ではページ番号を出さない。
+  - 取り消しは「生成情報を見る」の左に出て、ダブルクリックで取り消しにならない。
+  - 結論の一文、確かさの目盛り（「署名を確認済み」には届かない）、設定の日本語名、長いプロンプトの折りたたみ、押したボタンに出るコピーの結果。
+  - 作品ページのボタン: 作品IDに結び付く依頼、ハッシュやクエリが変わっても続く、別の作品に移ると閉じて勝手に読み込まない。
+  - 検査ページ: 複数の画像を1枚ずつ順に読む、一覧の切り替え、取り消しが順番待ちも止める、20枚の上限、一覧を消す、object URLでの表示（本番ビルドで確認）。
   - タブ単位の待機、検査できないページ、`srcset`。
   - 共有のticker 1本、ホスト要素の付け直し、SPA / BFCache。
   - 手元のファイルを作品に結び付けない、テキストだけの表示、押したときだけのコピー。
@@ -127,6 +134,7 @@ live-connectivityのファイルには、測定したときのビルドの成果
 - 変えたところ:
   - JPEGを解析するようになった。
   - 表示の文言が新しくなった。
+  - 2026-11-24のUIの作り直し（作品ページのパネルをビューアに置き換え、結果の文言と並び、ボタンの名前、検査ページの複数ファイル対応）。表示された結果はタブの中で2分間使い回すので、本番ビルドのテストで同じページを続けて調べる箇所は、作品IDを変えて調べるようにした。
   - Refererを付けると決めた後の403の説明。
   - ホバーで素早く切り替えるテストでの、要求のタイミング（#14）。
 - どの変更でも元の保証は残しており、削ったテストはありません。
@@ -139,6 +147,12 @@ live-connectivityのファイルには、測定したときのビルドの成果
   - わざとstrictに違反するコードを書いたファイルで試したところ、TypeScript 7.0.2の診断は5.9.3と同じでした。
 - Chromiumに足りないシステムのライブラリ（NSS、ALSA）は、このときだけ一時ディレクトリに展開しました。OSにもリポジトリにも入れていません。ふつうの環境では `npx playwright install --with-deps chromium` を使ってください。
 - 一時的なブラウザのプロファイルは毎回消しており、既存のユーザーのプロファイルは使っていません。
+
+## 2026-11-24の確認について
+
+- ブラウザのテストは、Chromiumに足りないシステムのライブラリ（NSS、ALSA）を一時ディレクトリに展開して実行しました。OSにもリポジトリにも入れていません。
+- `scripts/verify-live.ts` は新しいUIに合わせて書き換えましたが、型チェックだけで、実際のpixivに対しては実行していません（NOT RUN）。
+- 新しい配色の文字のコントラスト比は、すべて4.5以上です（計算値）。ボタンの枠線と背景の比は1.63で、3には届きません（残りの課題としてIssueに記録）。
 
 ## 公開前の監査（2026-11-21）
 

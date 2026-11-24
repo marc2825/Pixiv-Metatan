@@ -6,7 +6,11 @@ import { RateLimitError, retryAfterMs } from '../network/failures';
  * One API page in authoritative order. `original` is absent when pixiv returned a URL shape this
  * extension does not inspect (e.g. GIF/ugoira); the page keeps its index and may still be previewed.
  */
-export interface PixivPage { page: number; original?: string; preview?: string; previewSmall?: string; unavailable?: string }
+export interface PixivPage {
+  page: number; original?: string; preview?: string; previewSmall?: string; unavailable?: string;
+  /** Pixel size reported by pixiv, used only to reserve the preview's aspect ratio before it loads. */
+  width?: number; height?: number;
+}
 export function isPixivPage(url: string): boolean {
   try { const u = new URL(url); return u.origin === 'https://www.pixiv.net' && !u.username && !u.password; }
   catch { return false; }
@@ -77,6 +81,10 @@ export function parseArtworkPages(payload: unknown, id: string): PixivPage[] {
     const regular = derivative('regular'), small = derivative('small');
     if (regular ?? small) result.preview = regular ?? small;
     if (regular && small) result.previewSmall = small;
+    // Optional and display-only: an implausible size is dropped, never an error.
+    const size = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 100_000 ? value : undefined;
+    const width = size(item.width), height = size(item.height);
+    if (width && height) { result.width = width; result.height = height; }
     return result;
   });
 }

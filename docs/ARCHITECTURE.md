@@ -1,28 +1,29 @@
 # 設計
 
-2026-11-22時点。npmの依存はすべて開発用で、バックエンドもありません。MV3のAPI権限は、原寸取得にRefererを付けるための `declarativeNetRequestWithHostAccess` だけです。
+2026-11-24時点。npmの依存はすべて開発用で、バックエンドもありません。MV3のAPI権限は、原寸取得にRefererを付けるための `declarativeNetRequestWithHostAccess` だけです。
 
 ## 全体の流れ
 
 ```text
 pixiv top frame / isolated content script / closed Shadow DOM
-  ├─ app.ts      作品ページのパネル（ページ選択・ローカル読込）、共有ticker、共有cooldown
-  └─ preview.ts  イベント委譲のhover/focus、フローティングプレビュー
+  ├─ app.ts      作品ページの「生成情報」ボタン（同じビューアを作品IDで開く）、共有ticker、共有cooldown
+  └─ preview.ts  ビューア: イベント委譲のhover/focus、画像の列と結果のシート（result.ts）
        ├─ 250ms後、その作品だけ  GET /ajax/illust/{id}/pages   (same-origin session, redirect:error)
        │    └─ artworks.ts: 1 MiB / 15秒 / スキーマ / 原寸・縮小URL・ページ順の検証
        ├─ <img src=regular srcset="small 540w, regular 1200w">  表示専用（p0は元サムネイルも可）
        ├─ wheel / 前後 / 左右キー → 表示ページだけ切替（取得・解析しない）
-       ├─ Metadataクリック → {type, requestId, artworkId, page, url, contextUrl?}
+       ├─ 「生成情報を見る」→ {type, requestId, artworkId, page, url, contextUrl?（ホバーのときだけ）}
        │    └─ runtime.sendMessage → MV3 service worker (inspector.ts)
        │         自拡張 / frame 0 / tab ID / pixiv origin / 現在URL（取得前後）
        │         原寸URLのhost・path・作品ID・ページ / 全タブ1枠 / 429 cooldown
        │         fetch(credentials:omit, referrerPolicy:no-referrer, redirect:error)
        │           + session rule: Referer: https://www.pixiv.net/（この拡張・タブなし・GET・img-originalのみ）
        │         15秒 / 実受信48 MiB / MIME + magic → inspectImage → JSON互換の結果
-       └─ ファイル選択 → inspectLocalFile → 同じ inspectImage（作品とは関連付けない）
+       └─ 失敗したとき「手元の画像で調べる」→ inspectLocalFile → 同じ inspectImage（作品とは関連付けない）
 
 ツールバーのアイコン → action.onClicked → tabs.create(inspector.html)（拡張ページ・通信なし）
-  └─ local-inspector.ts: ファイル選択 / ドラッグ＆ドロップ → inspectLocalFile → renderResult（同じ実装を共用）
+  └─ local-inspector.ts: 複数ファイルを選択 / ドロップ → 1枚ずつ順に inspectLocalFile → renderResult（同じ実装を共用）
+       表示用の画像は、このページの中だけの object URL（一覧から消すと revoke）
 
 inspectImage (src/metadata, pixiv/UIから独立)
   PNG → png.ts（構造・CRC・tEXt/zTXt/iTXt）→ stealth.ts（アルファLSB）→ normalize.ts（分類）
@@ -157,6 +158,39 @@ PixivBatchDownloaderは、declarativeNetRequestでi.pximg.netへのすべての�
 | JSON | 深さ64、値50,000 |
 | Stealth | 圧縮1 MiB、1行1 MiB、展開後2 MiB、キー128 |
 | EXIF | IFDあたり512項目 |
+
+## 画面
+
+### ビューア（preview.ts）
+
+ホバーのプレビューと、作品ページの「生成情報」ボタンは、同じビューアを使います。違いは次のとおりです。
+
+| | ホバー | 作品ページのボタン |
+|---|---|---|
+| 開く | サムネイルに250ms | ボタンを押す |
+| 閉じる | カードとプレビューから離れて200ms（操作したあとは閉じない） | ×、Esc、外のクリック、もう一度ボタン |
+| 依頼の結び付け | 押したときのURLそのもの（`contextUrl`） | 作品ID（ハッシュやクエリが変わっても続ける） |
+| 位置 | カードの横 | ボタンの上、右端にそろえる |
+
+- 画像の枠は、pixivが返す縦横の大きさ（`width` / `height`、無ければ読み込んだ画像の大きさ）に合わせ、幅は画面の40%（280〜560px）、高さは720pxまでにします。
+- 結果のシート（幅340px）は、入るなら画像のカードと反対側の横に、入らなければ画像の下に出します。横に出すときは画像を動かしません。シートの高さは画像の列と同じで、長い内容はシートの中だけでスクロールします。
+- 「生成情報を見る」を押すか、手元の画像を選んだら固定（pinned）します。固定中はカードから離れても閉じず、ほかのカードでは開きません。×、Esc、ページ外の `pointerdown` で閉じます。
+- 取り消しボタンは「生成情報を見る」の左に出します。ボタンが動かないので、ダブルクリックしても取り消しになりません。
+- 「手元の画像で調べる」は、ページ一覧か原寸の読み込みに失敗したときだけ出します。
+
+### 結果（result.ts）
+
+- `verdict()` が状態ごとに一文を作ります（例: 「NovelAIで生成したと書かれています」「原寸画像を読み込めませんでした」）。失敗の一文は `failureReason()`（説明の最初の一文）と待ち時間から作り、全文は「くわしい理由」に入れます。
+- 生成ツールが書かれているときは、3段階の目盛り（書いてあるだけ / 署名あり・未確認 / 署名を確認済み）を出します。最後の段は検証の実装が無いので常に「未対応」で、到達しません。
+- 本文の順: 一文と目盛り → プロンプト（長ければ6行で切り、「すべて表示」）→ ほかのプロンプト（折りたたみ）→ 設定（日本語の名前）→ ComfyUIのJSON（折りたたみ・遅延生成）→「くわしい情報」（出どころ、形式、根拠、署名、Stealth、注記、URL、生データ、全体のコピー）。
+- コピーの結果は押したボタンの文字で示し、読み上げ用に1つのライブリージョンにも書きます。
+
+### 見た目（styles.ts）
+
+- 暗い無彩色の1種類の配色です。色は作品の画像にまかせ、黄色は目盛りの今の段だけに使います。pixivのライト / ダークの設定を読まずに済みます。
+- 文字はシステムフォントです（pixivのページの中で拡張のフォントを読むには、資源の公開が必要になるため）。
+- アイコンは `icons.ts` がDOMの操作で作るSVGです。静的ガードは、SVGの名前空間URI（`http://www.w3.org/2000/svg`）をこのファイルに限って通信先の確認から外しています。
+- 押せる部分は28px以上です。無効なボタンは破線と淡い文字で示し、透明度だけに頼りません。開くときに0.14秒のフェードがあり、`prefers-reduced-motion` では止めます。
 
 ## 動作と負荷
 

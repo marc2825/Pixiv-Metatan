@@ -12,10 +12,11 @@ for (const path of ['/tags/synthetic/artworks', '/ranking.php?mode=daily', '/use
     expect(extension.records.filter(record => record.kind === 'original')).toHaveLength(0);
     await driver.click('.hover-next'); expect(await driver.text(counter)).toBe('2 / 2');
     expect(await driver.attribute('#metatan-preview img', 'src')).toBe(previewUrl('123', 1));
-    await driver.click(scan); await expect.poll(() => driver.text(output)).toContain('作品 123 / 2枚目');
+    await driver.click(scan); await expect.poll(() => driver.text(output)).toContain('作品 123 の 2枚目');
     expect(extension.records.filter(record => record.kind === 'original')).toMatchObject([{ worker: true, page: 1, status: 200 }]);
-    await driver.click('.hover-previous'); expect(await driver.text(output)).toBe('');
-    await driver.click('.hover-next'); expect(await driver.text(output)).toContain('作品 123 / 2枚目');
+    await driver.click('.hover-previous'); expect(await driver.text(output)).toContain('まだ読み込んでいません');
+    await driver.click('.hover-next'); expect(await driver.text(output)).toContain('作品 123 の 2枚目');
+    expect(await driver.hidden(scan)).toBe(true);
     expect(extension.records.filter(record => record.kind === 'original')).toHaveLength(1);
     expect(extension.records.filter(record => record.kind === 'pages')).toHaveLength(1);
     expect(extension.unexpected).toEqual([]);
@@ -31,8 +32,8 @@ test('installed hover preserves display on worker 403 and accepts a local file w
   expect(await driver.attribute('#metatan-preview img', 'src')).toBe(previewUrl());
   const chooser = page.waitForEvent('filechooser'); await driver.click('.hover-local');
   await (await chooser).setFiles({ name: 'synthetic.png', mimeType: 'image/png', buffer: Buffer.from(png()) });
-  await expect.poll(() => driver.text(output)).toContain('ローカル: synthetic.png');
-  expect(await driver.text('.hover-info')).toContain('作品との一致は未確認');
+  await expect.poll(() => driver.text(output)).toContain('手元のファイル: synthetic.png');
+  expect(await driver.text(output)).toContain('表示中の作品と同じ画像かは確かめていません');
   expect(extension.records.filter(record => record.kind === 'original')).toHaveLength(1);
 });
 
@@ -59,6 +60,6 @@ test('two listing tabs retain the global single-original slot and allow cancella
   await second.driver.click(scan); await expect.poll(() => second.driver.text(output)).toContain('別の画像を検査中');
   await first.page.bringToFront(); await first.driver.click('.hover-next');
   await expect.poll(() => first.driver.disabled(scan)).toBe(false);
-  await first.driver.click(scan); await expect.poll(() => first.driver.text(output)).toContain('作品 123 / 2枚目');
+  await first.driver.click(scan); await expect.poll(() => first.driver.text(output)).toContain('作品 123 の 2枚目');
   expect(extension.records.filter(record => record.kind === 'original').map(record => record.page)).toEqual([0, 1]);
 });

@@ -54,4 +54,4 @@ pixiv is a trademark of pixiv Inc. NovelAI, ComfyUI and AUTOMATIC1111 belong to 
 
 ## Images
 
-The repository contains no third-party artwork. The screenshots in `docs/screenshots/` show synthetic test pages with 1×1 black images, and every image in `tests/reference/fixtures/` was generated for this project.
+The repository contains no third-party artwork. The screenshots in `docs/screenshots/` show synthetic test pages with 1×1 black images, or the generated fixtures below, and every image in `tests/reference/fixtures/` was generated for this project.

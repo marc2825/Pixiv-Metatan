@@ -33,8 +33,14 @@ describe('static security guards for extension code', () => {
   ])('contains no %s', (_name, pattern) => expect(offenders(pattern)).toEqual([]));
 
   it('only references pixiv and pximg hosts in code', () => {
-    const hosts = new Set(files.flatMap(file => [...code(file.code).matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)].map(match => match[1])));
+    // The SVG XML namespace is an identifier passed to createElementNS, never fetched. Only that exact
+    // string is exempt, and only in the icon module.
+    const namespace = (file: { path: string }, text: string) => file.path.endsWith('ui/icons.ts') ? text.replace("'http://www.w3.org/2000/svg'", "''") : text;
+    const hosts = new Set(files.flatMap(file => [...namespace(file, code(file.code)).matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)].map(match => match[1])));
     expect([...hosts].sort()).toEqual(['i.pximg.net', 'www.pixiv.net']);
+  });
+  it('creates object URLs only on the extension\'s own inspector page, never inside pixiv', () => {
+    expect(offenders(/createObjectURL/)).toEqual(['src/ui/local-inspector.ts']);
   });
   it('fetches only in the pages adapter and the worker inspector', () => {
     expect(offenders(/\bfetch\b/).sort()).toEqual(['src/network/inspector.ts', 'src/pixiv/artworks.ts']);
