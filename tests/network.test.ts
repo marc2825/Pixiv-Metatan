@@ -99,7 +99,7 @@ describe('privileged worker boundary', () => {
   it.each([401, 403, 404, 429, 500])('reports HTTP %d and local fallback without retries', async status => {
     const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status })));
     const result = await worker.handle(request, sender);
-    expect(result?.status).toBe('access-denied'); expect(result?.notes.join(' ')).toContain(`http-${status}`); expect(result?.notes.join(' ')).toContain('ローカル'); expect(worker.fetcher).toHaveBeenCalledOnce();
+    expect(result?.status).toBe('access-denied'); expect(result?.notes.join(' ')).toContain(`http-${status}`); expect(result?.notes.join(' ')).toContain('手元の画像で調べる'); expect(worker.fetcher).toHaveBeenCalledOnce();
   });
   it.each(['text/html', 'application/json', 'application/octet-stream', ''])('rejects unexpected MIME %s', async mime => {
     const worker = setup(vi.fn<typeof fetch>().mockResolvedValue(new Response(png(), { headers: { 'content-type': mime } })));
@@ -171,7 +171,7 @@ describe('structured worker failures', () => {
     const result = await worker.handle(request, sender);
     expect(result).toMatchObject({ status: 'access-denied', error: { layer: 'original', code: 'http-403' } });
     expect(result?.error?.retryAfterMs).toBeUndefined();
-    expect(result?.notes.join(' ')).toContain('画像配信サーバーが拒否しました'); expect(result?.notes.join(' ')).toContain('ローカルファイルを検査');
+    expect(result?.notes.join(' ')).toContain('画像配信サーバーが拒否しました'); expect(result?.notes.join(' ')).toContain('手元の画像で調べる');
     expect(worker.fetcher).toHaveBeenCalledOnce();
     expect(worker.fetcher.mock.calls[0]?.[1]).toMatchObject({ credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error' });
   });

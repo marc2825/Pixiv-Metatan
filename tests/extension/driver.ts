@@ -37,8 +37,9 @@ export class InspectorDriver {
   async text(selector: string): Promise<string> {
     return this.call(await this.node(selector), 'function(){return this.textContent}');
   }
+  /** The one-sentence verdict at the top of the result sheet. */
   async summary(): Promise<string> {
-    return this.call(await this.node('[aria-label="検査結果"]'), 'function(){return this.firstElementChild?.textContent??""}');
+    return this.call(await this.node(ui.result), 'function(){return this.querySelector(".verdict-title")?.textContent??""}');
   }
   async disabled(selector: string): Promise<boolean> {
     return this.call(await this.node(selector), 'function(){return this.disabled}');
@@ -56,25 +57,18 @@ export class InspectorDriver {
     const q = model.border;
     await this.page.mouse.click((q[0]! + q[4]!) / 2, (q[1]! + q[5]!) / 2);
   }
-  async select(page: number): Promise<void> {
-    await this.call(await this.node('select'), 'function(value){this.value=String(value);this.dispatchEvent(new Event("change",{bubbles:true}))}', [page]);
-  }
-  async options(): Promise<string[]> {
-    return this.call(await this.node('select'), 'function(){return Array.from(this.options,o=>o.textContent)}');
-  }
   async localFile(path: string): Promise<void> {
     const chooser = this.page.waitForEvent('filechooser');
-    await this.click('.buttons > button:nth-child(2)');
+    await this.click(ui.file);
     await (await chooser).setFiles(path);
   }
   async files(payload: { name: string; mimeType: string; buffer: Buffer }): Promise<void> {
     const chooser = this.page.waitForEvent('filechooser');
-    await this.click('.buttons > button:nth-child(2)');
+    await this.click(ui.file);
     await (await chooser).setFiles(payload);
   }
 }
 export const ui = {
-  toggle: '.toggle', scan: '.buttons > button:nth-child(1)', file: '.buttons > button:nth-child(2)',
-  cancel: '.buttons > button:nth-child(3)', refresh: '.buttons > button:nth-child(4)', close: '.buttons > button:nth-child(5)',
-  status: '[role="status"]', result: '[aria-label="検査結果"]',
+  toggle: '.toggle', panel: '#metatan-preview', scan: '.hover-metadata', file: '.hover-local', next: '.hover-next', previous: '.hover-previous',
+  counter: '.hover-counter', status: '.hover-info', result: '.hover-results',
 };

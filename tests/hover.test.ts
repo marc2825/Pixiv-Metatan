@@ -20,7 +20,7 @@ function mount(overrides: Partial<AppDependencies> = {}) {
   destroy = mountInspector(deps); return deps;
 }
 const panel = () => root.querySelector<HTMLElement>('#metatan-preview')!;
-const control = (selector: string) => panel().querySelector<HTMLButtonElement>(selector)!;
+const control = <T extends HTMLElement = HTMLButtonElement>(selector: string) => panel().querySelector<T>(selector)!;
 const enter = (anchor: HTMLAnchorElement) => anchor.querySelector('img')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 const leave = (anchor: HTMLAnchorElement, relatedTarget: EventTarget | null = null) => anchor.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget }));
 async function open(anchor: HTMLAnchorElement) { enter(anchor); await vi.advanceTimersByTimeAsync(250); }
@@ -98,19 +98,23 @@ describe('delegated hover preview', () => {
     expect(panel().querySelector('img')?.src).toContain('456_p0');
     expect(control('.hover-metadata').disabled).toBe(true); expect(control('.hover-local').disabled).toBe(false);
   });
-  it.each([false, true])('shares page information and API rate limits with the artwork panel (limited=%s)', async limited => {
+  it.each([false, true])('shares page information and API rate limits with the artwork page button (limited=%s)', async limited => {
     history.replaceState({}, '', '/artworks/123');
     const pages = limited ? vi.fn().mockRejectedValue(new RateLimitError('pixiv-pages-http-429', 120_000)) : vi.fn().mockResolvedValue(list());
     mount({ pages }); await open(card());
     root.querySelector<HTMLButtonElement>('.toggle')!.click(); await vi.advanceTimersByTimeAsync(0);
     expect(pages).toHaveBeenCalledOnce();
-    expect(root.querySelector<HTMLButtonElement>('#metatan-panel .buttons > button')!.disabled).toBe(limited);
-    if (limited) expect(root.querySelector('#metatan-panel')?.textContent).toContain('pixiv-pages-http-429');
+    expect(control('.hover-metadata').disabled).toBe(limited);
+    expect(root.querySelector('.toggle')!.getAttribute('aria-expanded')).toBe('true');
+    if (limited) expect(control('.hover-info').textContent).toContain('pixiv-pages-http-429');
   });
   it('reuses per-page results and never automatically inspects when changing pages', async () => {
     const deps = mount(); await open(card()); control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
-    control('.hover-next').click(); expect(panel().querySelector('.hover-results')?.textContent).toBe(''); expect(deps.send).toHaveBeenCalledOnce();
-    control('.hover-previous').click(); expect(panel().textContent).toContain('synthetic result');
+    expect(control('.hover-metadata').hidden).toBe(true);
+    control('.hover-next').click(); expect(control('.hover-results').textContent).toContain('まだ読み込んでいません'); expect(deps.send).toHaveBeenCalledOnce();
+    expect(control('.hover-metadata').hidden).toBe(false);
+    control('.hover-previous').click(); expect(control('.hover-results').textContent).toContain('synthetic result');
+    expect(control('.hover-metadata').hidden).toBe(true);
     control('.hover-metadata').click(); expect(deps.send).toHaveBeenCalledOnce();
   });
   it('cancels page-specific inspection and ignores late results', async () => {
@@ -140,20 +144,24 @@ describe('delegated hover preview', () => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     mount({ send: vi.fn().mockResolvedValue({ ...emptyResult('found', []), fields: { prompt: 'line 1\nline 2' } }) });
     await open(card()); control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
-    const pre = panel().querySelector('pre')!; pre.focus();
-    pre.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, composed: true }));
+    const text = panel().querySelector<HTMLElement>('.field-text')!; text.focus();
+    text.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, composed: true }));
     expect(control('.hover-counter').textContent).toBe('1 / 3'); expect(writeText).not.toHaveBeenCalled();
-    const copy = [...panel().querySelectorAll('button')].find(button => button.getAttribute('aria-label') === 'Promptをコピー')!;
+    const copy = [...panel().querySelectorAll('button')].find(button => button.getAttribute('aria-label') === 'プロンプトをコピー')!;
     copy.click(); expect(writeText).toHaveBeenCalledWith('line 1\nline 2');
   });
-  it('does not assign local metadata to the artwork result cache', async () => {
-    const deps = mount(); await open(card()); control('.hover-local').click();
+  it('offers a local file only after a failure and never assigns it to the artwork result cache', async () => {
+    const deps = mount({ send: vi.fn().mockResolvedValue(emptyResult('access-denied', ['http-403'])) }); await open(card());
+    expect(control('.hover-local').hidden).toBe(true);
+    control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
+    expect(control('.hover-local').hidden).toBe(false); control('.hover-local').click();
     const input = panel().querySelector('input')!, stream = vi.fn();
     Object.defineProperty(input, 'files', { configurable: true, value: [{ name: 'large.png', size: 48 * 1024 * 1024 + 1, stream }] });
     input.dispatchEvent(new Event('change')); await vi.advanceTimersByTimeAsync(0);
-    expect(panel().textContent).toContain('安全上限超過'); expect(stream).not.toHaveBeenCalled();
+    expect(control('.hover-results').textContent).toContain('大きすぎるため、読むのをやめました'); expect(stream).not.toHaveBeenCalled();
+    expect(control('.hover-results').textContent).toContain('表示中の作品と同じ画像かは確かめていません');
     control('.hover-next').click(); control('.hover-previous').click();
-    expect(panel().querySelector('.hover-results')?.textContent).toBe(''); expect(deps.send).not.toHaveBeenCalled();
+    expect(control('.hover-results').textContent).not.toContain('大きすぎる'); expect(deps.send).toHaveBeenCalledOnce();
   });
   it('clears work and caches on any SPA URL change or BFCache entry', async () => {
     const deps = mount(), anchor = card(); await open(anchor); control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
@@ -174,14 +182,15 @@ describe('delegated hover preview', () => {
     control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
     control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
     expect(deps.send).toHaveBeenCalledOnce(); expect(panel().textContent).toContain('このタブから原寸を取得しません');
-    await vi.advanceTimersByTimeAsync(121_000); await open(card('456'));
+    await vi.advanceTimersByTimeAsync(121_000); control('.hover-close').click(); await open(card('456'));
+    expect(panel().querySelector('h2')?.textContent).toBe('Artwork 456');
     control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0); expect(deps.send).toHaveBeenCalledTimes(2);
   });
   it('previews but never inspects a page whose original shape is not recognised', async () => {
     const pages = vi.fn().mockResolvedValue([{ page: 0, original: originalUrl(), preview: previewUrl() }, { page: 1, preview: previewUrl('123', 1), unavailable: 'unsupported-original-format' }]);
     const deps = mount({ pages }); await open(card());
     control('.hover-next').click();
-    expect(control('.hover-metadata').disabled).toBe(true); expect(panel().textContent).toContain('検査対象外の形式');
+    expect(control('.hover-metadata').disabled).toBe(true); expect(control('.hover-metadata').hidden).toBe(true); expect(control('.hover-unavailable').hidden).toBe(false);
     expect(panel().querySelector('img')?.src).toBe(previewUrl('123', 1));
     control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0); expect(deps.send).not.toHaveBeenCalled();
   });
@@ -217,7 +226,7 @@ describe('delegated hover preview', () => {
     expect(panel().querySelector('h2')?.textContent).toBe(attack); expect(panel().querySelector('.hover-author')?.textContent).toBe(attack);
     expect(panel().querySelectorAll('script')).toHaveLength(0);
     expect([...panel().querySelectorAll('img')].map(img => img.className)).toEqual(['preview-image']);
-    expect(panel().querySelector<HTMLAnchorElement>('.hover-meta a')?.href).toBe('https://www.pixiv.net/artworks/123');
+    expect(panel().querySelector('img')!.alt).toBe(attack);
   });
   it('skips the pages request for cards passed over mid-sweep and loads without delay on return (issue #14)', async () => {
     const pages = vi.fn().mockImplementation(async (id: string) => list(id));
@@ -226,8 +235,25 @@ describe('delegated hover preview', () => {
     leave(a, b); enter(b); await vi.advanceTimersByTimeAsync(250);   // sweep: B opens 250 ms after A
     leave(b, a); enter(a);                                           // pointer moves on before the delay ends
     await vi.advanceTimersByTimeAsync(SWEEP_API_DELAY_MS);
-    expect(pages).toHaveBeenCalledTimes(1); expect(panel().textContent).toContain('画像一覧の取得を保留しました');
+    expect(pages).toHaveBeenCalledTimes(1); expect(control('.hover-metadata').disabled).toBe(true);
     leave(a, b); enter(b); await vi.advanceTimersByTimeAsync(0);    // back on B: fetched at once, no new delay
     expect(pages).toHaveBeenCalledTimes(2); expect(control('.hover-counter').textContent).toBe('1 / 3');
+  });
+  it('stays open once the user acts, ignores other cards, and closes on × or a click outside', async () => {
+    const deps = mount(), a = card('123'), b = card('456'); await open(a);
+    control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
+    leave(a); panel().dispatchEvent(new MouseEvent('mouseleave')); await vi.advanceTimersByTimeAsync(500);
+    expect(panel().hidden).toBe(false);
+    await open(b); expect(panel().querySelector('h2')?.textContent).toBe('Artwork 123'); expect(deps.pages).toHaveBeenCalledOnce();
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true })); expect(panel().hidden).toBe(true);
+    await open(a); control('.hover-metadata').click(); await vi.advanceTimersByTimeAsync(0);
+    control('.hover-close').click(); expect(panel().hidden).toBe(true); expect(document.activeElement).toBe(a);
+  });
+  it('reserves the reported aspect ratio and hides navigation for a single page', async () => {
+    mount({ pages: vi.fn().mockResolvedValue([{ page: 0, original: originalUrl(), preview: previewUrl(), width: 1000, height: 2000 }]) });
+    await open(card());
+    const stage = control<HTMLElement>('.preview-stage');
+    expect(parseFloat(stage.style.height) / parseFloat(stage.style.width)).toBeCloseTo(2, 1);
+    expect(control('.hover-counter').hidden).toBe(true); expect(control('.hover-next').hidden).toBe(true);
   });
 });

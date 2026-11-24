@@ -2,15 +2,27 @@ import { InspectionError } from '../limits';
 import { emptyResult, type InspectionResult } from '../metadata/types';
 
 /** The supported recovery path when the original cannot be fetched. No bypass is attempted. */
-export const localFallback = '原寸を確認するには、pixivの作品ページで原寸画像を表示してブラウザで保存し、「ローカルファイルを検査」で選択してください（正規に閲覧・保存できる画像のみ）。';
+export const localFallback = '原寸を確かめたいときは、pixivの作品ページで原寸画像を表示してブラウザで保存し、「手元の画像で調べる」から選んでください（ふつうに閲覧・保存できる画像だけ）。';
 
 const ORIGINAL_403 = '画像配信サーバーが拒否しました。この拡張は原寸の取得にpixivのReferer（https://www.pixiv.net/）だけを付け、Cookieは送りません。削除・非公開・公開範囲の変更、または配信側の仕様変更が考えられますが、この応答だけでは特定できません。自動再試行はしません。';
 
 /** Describe the failing layer from the observed status; do not invent the server's reason. */
 export function accessExplanation(code: string, layer: 'pages' | 'original', detail?: string): string {
   const target = layer === 'pages' ? '作品の画像一覧（pixiv API）' : '解析用の原寸画像（i.pximg.net）';
+  const server = detail ? `pixivの応答:「${detail}」` : '';
+  return `${target}を取得できませんでした（${code}）。${reasonText(code, layer)}${server}`;
+}
+
+/** The first sentence of the explanation: what the observed status means, for a one-line summary. */
+export function failureReason(code: string, layer: 'pages' | 'original'): string {
+  const reason = reasonText(code, layer);
+  const end = reason.indexOf('。');
+  return end < 0 ? reason : reason.slice(0, end + 1);
+}
+
+function reasonText(code: string, layer: 'pages' | 'original'): string {
   const status = /(?:^|-)http-(\d{3})$/.exec(code)?.[1];
-  const reason = status === '401' ? '認証が必要、またはアクセスが拒否されました。'
+  return status === '401' ? '認証が必要、またはアクセスが拒否されました。'
     : status === '403' ? (layer === 'original' ? ORIGINAL_403 : 'pixivが拒否しました。ログイン状態・公開範囲・年齢制限などが考えられますが、この応答だけでは特定できません。')
     : status === '404' ? '見つかりません。削除・非公開・URL変更の可能性があります。'
     : status === '429' ? 'リクエストが制限されています。待機時間が過ぎてから、もう一度明示的に操作してください。自動再試行はしません。'
@@ -24,8 +36,6 @@ export function accessExplanation(code: string, layer: 'pages' | 'original', det
     : code === 'current-context-mismatch' ? 'ページが移動したため中止しました。'
     : code === 'unapproved-image-url' ? '検査対象として認められないURLです。'
     : '通信できませんでした（ネットワーク切断・拡張の再読み込みなど）。';
-  const server = detail ? `pixivの応答:「${detail}」` : '';
-  return `${target}を取得できませんでした（${code}）。${reason}${server}`;
 }
 
 export function errorCode(error: unknown): string {

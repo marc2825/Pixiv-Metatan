@@ -35,6 +35,16 @@ describe('pixiv page and authoritative originals', () => {
     const parsed = parseArtworkPages(payload, '123');
     expect(parsed[1]).toEqual({ page: 1, original: originalUrl('123', 1) });
   });
+  it('keeps plausible page sizes for the preview aspect ratio and drops implausible ones without failing', () => {
+    const payload = pagePayload('123', 4) as { error: boolean; body: Record<string, unknown>[] };
+    Object.assign(payload.body[0]!, { width: 1200, height: 1600 });
+    Object.assign(payload.body[1]!, { width: 0, height: 900 });
+    Object.assign(payload.body[2]!, { width: '1200', height: 1600 });
+    Object.assign(payload.body[3]!, { width: 100_001, height: 1.5 });
+    const parsed = parseArtworkPages(payload, '123');
+    expect(parsed[0]).toEqual({ page: 0, original: originalUrl(), width: 1200, height: 1600 });
+    for (const page of parsed.slice(1)) { expect(page.width).toBeUndefined(); expect(page.height).toBeUndefined(); expect(page.original).toBeDefined(); }
+  });
   it.each([originalUrl(), previewUrl('999'), previewUrl('123', 1), previewUrl() + '?token=x', previewUrl().replace('https:', 'http:'), previewUrl().replace('i.pximg.net', 'i.pximg.net.evil'), previewUrl().replace('i.pximg.net', 'user@i.pximg.net'), 'data:image/png;base64,x', 'javascript:alert(1)'])('rejects invalid display derivative %s', url => {
     expect(() => validatePreviewUrl(url, '123', 0)).toThrow();
   });
@@ -77,7 +87,7 @@ describe('page listing robustness and precise pixiv errors', () => {
   it('accepts every URL shape observed from the live API and keeps small/regular for srcset', () => {
     for (const url of [live.thumb_mini, live.small, live.regular]) expect(validatePreviewUrl(url, '123', 0)).toBe(url);
     expect(parseArtworkPages({ error: false, message: '', body: [{ urls: live, width: 1, height: 1 }] }, '123'))
-      .toEqual([{ page: 0, original: live.original, preview: live.regular, previewSmall: live.small }]);
+      .toEqual([{ page: 0, original: live.original, preview: live.regular, previewSmall: live.small, width: 1, height: 1 }]);
   });
   it('keeps numbering but marks unrecognised original shapes non-inspectable', () => {
     const payload = pagePayload('123', 3);

@@ -34,7 +34,7 @@ async function start(page: Page, options: { path?: string; count?: number; apiSt
 const originals = (requests: string[]) => requests.filter(url => url.includes('/img-original/'));
 const apiRequests = (requests: string[]) => requests.filter(url => url.includes('/ajax/illust/'));
 
-test('hover opens a multipage preview, stays open during transfer, uses wheel/buttons/keys and caches metadata', async ({ page }) => {
+test('hover opens a multipage preview, keeps the image in place when the result opens, and caches it', async ({ page }) => {
   const requests = await start(page);
   await page.locator('#a').hover();
   const preview = page.getByRole('region', { name: '作品プレビュー', exact: true });
@@ -43,22 +43,33 @@ test('hover opens a multipage preview, stays open during transfer, uses wheel/bu
   const stage = preview.locator('.preview-stage'); await stage.hover();
   await page.mouse.wheel(0, 120);
   await expect(preview.locator('.hover-counter')).toHaveText('2 / 3');
-  await expect(preview.locator('img')).toHaveAttribute('src', previewUrl('123', 1));
+  await expect(preview.locator('.preview-image')).toHaveAttribute('src', previewUrl('123', 1));
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   await stage.evaluate(element => { for (let i = 0; i < 50; i++) element.dispatchEvent(new WheelEvent('wheel', { deltaY: 10, cancelable: true })); });
   await expect(preview.locator('.hover-counter')).toHaveText('2 / 3');
   await stage.focus(); await page.keyboard.press('ArrowRight'); await expect(preview.locator('.hover-counter')).toHaveText('3 / 3');
   await expect(preview.getByRole('button', { name: '次の画像', exact: true })).toBeDisabled();
   await page.keyboard.press('ArrowLeft');
-  await preview.getByRole('button', { name: 'Metadata', exact: true }).click();
-  await expect(preview.getByLabel('プレビューの検査結果', { exact: true })).toContainText('作品 123 / 2枚目');
-  await page.screenshot({ path: '.test-browser/hover-result.png' });
+  const before = await stage.boundingBox();
+  await preview.getByRole('button', { name: '生成情報を見る', exact: true }).click();
+  const sheet = preview.getByRole('region', { name: '生成情報', exact: true });
+  await expect(sheet).toContainText('NovelAIで生成したと書かれています');
+  await expect(sheet).toContainText('作品 123 の 2枚目（原寸）');
+  // The image does not move when the sheet opens, and the sheet sits beside it, inside the viewport.
+  expect(await stage.boundingBox()).toEqual(before);
+  const sheetBox = (await sheet.boundingBox())!, panelBox = (await preview.boundingBox())!;
+  expect(sheetBox.x).toBeGreaterThanOrEqual(before!.x + before!.width - 1);
+  expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(1100); expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(850);
+  await page.screenshot({ path: '.test-browser/hover-result.png', animations: 'disabled' });
   expect(originals(requests)).toEqual([originalUrl('123', 1)]);
+  // Once the user asked for the result, the preview stays while the pointer is elsewhere.
+  await page.mouse.move(1090, 840); await page.waitForTimeout(400); await expect(preview).toBeVisible();
   await preview.getByRole('button', { name: '前の画像', exact: true }).click();
-  await expect(preview.getByLabel('プレビューの検査結果', { exact: true })).toBeEmpty();
+  await expect(sheet).toContainText('まだ読み込んでいません');
   await preview.getByRole('button', { name: '次の画像', exact: true }).click();
-  await expect(preview.getByLabel('プレビューの検査結果', { exact: true })).toContainText('synthetic prompt');
-  await preview.getByRole('button', { name: 'Metadata', exact: true }).click(); expect(originals(requests)).toHaveLength(1);
+  await expect(sheet).toContainText('synthetic prompt');
+  await expect(preview.getByRole('button', { name: '生成情報を見る', exact: true })).toBeHidden();
+  expect(originals(requests)).toHaveLength(1);
   expect(apiRequests(requests)).toHaveLength(1);
   await page.keyboard.press('Escape'); await expect(preview).toBeHidden(); await expect(page.locator('#a')).toBeFocused();
 });
@@ -66,13 +77,15 @@ test('hover opens a multipage preview, stays open during transfer, uses wheel/bu
 test('original 403 preserves display and enables an explicit local-file fallback in preview', async ({ page }) => {
   const requests = await start(page, { imageStatus: 403 }); await page.locator('#a').hover();
   const preview = page.locator('#metatan-preview');
-  await preview.getByRole('button', { name: 'Metadata', exact: true }).click();
+  await expect(preview.getByRole('button', { name: '手元の画像で調べる', exact: true })).toBeHidden();
+  await preview.getByRole('button', { name: '生成情報を見る', exact: true }).click();
+  await expect(preview.locator('.verdict-title')).toHaveText('原寸画像を読み込めませんでした');
   await expect(preview).toContainText('http-403');
-  await expect(preview.locator('img')).toBeVisible();
-  expect(await preview.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBe(1);
-  const picker = page.waitForEvent('filechooser'); await preview.getByRole('button', { name: 'ローカルファイルを検査', exact: true }).click();
+  await expect(preview.locator('.preview-image')).toBeVisible();
+  expect(await preview.locator('.preview-image').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBe(1);
+  const picker = page.waitForEvent('filechooser'); await preview.getByRole('button', { name: '手元の画像で調べる', exact: true }).click();
   await (await picker).setFiles({ name: 'synthetic-local.png', mimeType: 'image/png', buffer: Buffer.from(png()) });
-  await expect(preview).toContainText('ローカル: synthetic-local.png'); await expect(preview).toContainText('作品との一致は未確認');
+  await expect(preview).toContainText('手元のファイル: synthetic-local.png'); await expect(preview).toContainText('同じ画像かは確かめていません');
   expect(originals(requests)).toHaveLength(1);
 });
 
@@ -81,7 +94,7 @@ test('rapid hover, leaving, and SPA changes suppress stale artwork and requests'
   await page.locator('#a').hover(); await expect(page.locator('#metatan-preview')).toBeVisible();
   await page.locator('#b').hover(); await expect(page.locator('#metatan-preview h2')).toHaveText('Synthetic artwork 456');
   await expect(page.locator('.hover-counter')).toHaveText('1 / 3');
-  await expect(page.locator('#metatan-preview img')).toHaveAttribute('src', previewUrl('456'));
+  await expect(page.locator('#metatan-preview .preview-image')).toHaveAttribute('src', previewUrl('456'));
   await page.mouse.move(10, 10); await expect(page.locator('#metatan-preview')).toBeHidden();
   await page.locator('#b').hover(); await expect(page.locator('#metatan-preview')).toBeVisible();
   await page.evaluate(() => history.pushState({}, '', '/users/789/bookmarks/artworks'));
@@ -90,25 +103,33 @@ test('rapid hover, leaving, and SPA changes suppress stale artwork and requests'
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`viewport edge and narrow ${colorScheme} preview retains accessible single-page controls`, async ({ page }) => {
+  test(`viewport edge and narrow ${colorScheme} preview keeps single-page controls and the result inside the screen`, async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 640 }); await page.emulateMedia({ colorScheme });
     const requests = await start(page, { count: 1, edge: true }); await page.locator('#a').focus();
     const preview = page.locator('#metatan-preview'); await expect(preview).toBeVisible();
-    await expect(preview.locator('.hover-counter')).toHaveText('1 / 1');
+    await expect(preview.locator('.hover-counter')).toBeHidden();
     await page.keyboard.press('ArrowDown'); await expect(preview.locator('.preview-stage')).toBeFocused();
-    await page.keyboard.press('Tab'); await expect(preview.getByRole('button', { name: 'Metadata', exact: true })).toBeFocused();
+    await page.keyboard.press('Tab'); await expect(preview.getByRole('button', { name: '生成情報を見る', exact: true })).toBeFocused();
     await expect(preview.getByRole('button', { name: '次の画像', exact: true })).toBeHidden();
-    const box = await preview.boundingBox(); expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.y).toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(360); expect(box!.y + box!.height).toBeLessThanOrEqual(640);
-    await page.screenshot({ path: `.test-browser/hover-${colorScheme}.png` });
-    await page.keyboard.press('Escape'); await expect(preview).toBeHidden(); expect(originals(requests)).toHaveLength(0);
+    const inside = async () => {
+      const box = (await preview.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(360); expect(box.y + box.height).toBeLessThanOrEqual(640);
+    };
+    await inside();
+    await page.screenshot({ path: `.test-browser/hover-${colorScheme}.png`, animations: 'disabled' });
+    await page.keyboard.press('Enter');
+    await expect(preview.locator('.verdict-title')).toHaveText('NovelAIで生成したと書かれています');
+    await expect(preview).toHaveAttribute('data-layout', 'stack'); await inside();
+    await page.keyboard.press('Escape'); await expect(preview).toBeHidden(); expect(originals(requests)).toHaveLength(1);
   });
 }
 
 test('429 pages denial leaves a thumbnail and does not repeat API calls on another hover', async ({ page }) => {
   const requests = await start(page, { apiStatus: 429 }); await page.locator('#a').hover();
+  await expect(page.locator('#metatan-preview .hover-info')).toContainText('画像の一覧を読み込めませんでした');
   await expect(page.locator('#metatan-preview')).toContainText('pixiv-pages-http-429');
-  await expect(page.locator('#metatan-preview img')).toBeVisible();
+  await expect(page.locator('#metatan-preview .preview-image')).toBeVisible();
   await page.locator('#b').hover(); await expect(page.locator('#metatan-preview h2')).toHaveText('Synthetic artwork 456');
   await expect(page.locator('#metatan-preview')).toContainText('pixiv-pages-http-429');
   expect(apiRequests(requests)).toHaveLength(1); expect(originals(requests)).toHaveLength(0);
